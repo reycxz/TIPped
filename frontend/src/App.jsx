@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import CreateReport from './pages/CreateReport';
 import AdminQueue from './pages/AdminQueue';
+import Profile from './pages/Profile';
 import { getMe } from './api/auth';
 
 export default function App() {
@@ -67,7 +68,7 @@ export default function App() {
           <Route path="/my-reports" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">My Reports</div>} />
           <Route path="/admin" element={<AdminQueue user={currentUser} />} />
           <Route path="/analytics" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">Analytics</div>} />
-          <Route path="/profile" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">Profile</div>} />
+          <Route path="/profile" element={<Profile user={currentUser} onProfileUpdated={(updated) => setCurrentUser(updated)} />} />
         </Route>
       </Routes>
     </Router>

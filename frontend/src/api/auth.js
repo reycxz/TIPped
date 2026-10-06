@@ -41,4 +41,14 @@ export const resetPassword = async (email, otp, newPassword) => {
   return response.data;
 };
 
+export const updateProfile = async (profileData) => {
+  const response = await api.put('/profile', profileData);
+  return response.data;
+};
+
+export const changePassword = async (currentPassword, newPassword) => {
+  const response = await api.put('/change-password', { currentPassword, newPassword });
+  return response.data;
+};
+
 export default api;

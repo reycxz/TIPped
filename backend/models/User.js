@@ -44,6 +44,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: null
     },
+    avatar: {
+      type: String,
+      default: 'avatar-1'
+    },
     // Supporting OTP verification as defined in RULES.md
     otp: {
       type: String,

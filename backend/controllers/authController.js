@@ -154,3 +154,65 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+// @desc    Update profile (firstName, lastName, avatar)
+// @route   PUT /api/auth/profile
+// @access  Private
+exports.updateProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, avatar } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (firstName) user.firstName = firstName.trim();
+    if (lastName) user.lastName = lastName.trim();
+    if (avatar) user.avatar = avatar;
+
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    res.json({
+      message: 'Profile updated',
+      user: userObj,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Change password (authenticated) - Unified password update preserving _id
+// @route   PUT /api/auth/change-password
+// @access  Private
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Invalid password' });
+    }
+
+    // Update password (pre-save hook hashes with bcrypt, preserving _id and history)
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: 'Password saved' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
