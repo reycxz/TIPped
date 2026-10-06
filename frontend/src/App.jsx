@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import CreateReport from './pages/CreateReport';
 import { getMe } from './api/auth';
 
 export default function App() {
@@ -61,7 +62,7 @@ export default function App() {
           <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
           <Route path="/register" element={<Register onLoginSuccess={handleLoginSuccess} />} />
           <Route path="/dashboard" element={<Dashboard user={currentUser} />} />
-          <Route path="/report/new" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">Create Report</div>} />
+          <Route path="/report/new" element={<CreateReport />} />
           <Route path="/my-reports" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">My Reports</div>} />
           <Route path="/admin" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">Console</div>} />
           <Route path="/analytics" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">Analytics</div>} />

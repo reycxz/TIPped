@@ -35,6 +35,11 @@ const locationInfoSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Room is required'],
       trim: true
+    },
+    landmark: {
+      type: String,
+      trim: true,
+      default: ''
     }
   },
   { _id: false }

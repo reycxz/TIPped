@@ -25,4 +25,9 @@ export const getMyTickets = async () => {
   return response.data;
 };
 
+export const createTicket = async (ticketData) => {
+  const response = await api.post('/', ticketData);
+  return response.data;
+};
+
 export default api;
