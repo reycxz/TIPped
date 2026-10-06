@@ -35,4 +35,9 @@ export const getAdminTickets = async (params = {}) => {
   return response.data;
 };
 
+export const updateTicket = async (id, updateData) => {
+  const response = await api.put(`/${id}`, updateData);
+  return response.data;
+};
+
 export default api;

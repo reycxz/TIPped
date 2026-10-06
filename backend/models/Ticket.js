@@ -91,6 +91,19 @@ const ticketSchema = new mongoose.Schema(
       type: [adminRemarkSchema],
       default: []
     },
+    priority: {
+      type: String,
+      enum: ['Low', 'Medium', 'High', 'Critical'],
+      default: 'Medium'
+    },
+    auditTrail: [
+      {
+        action: { type: String, required: true },
+        details: { type: String, default: '' },
+        performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        timestamp: { type: Date, default: Date.now }
+      }
+    ],
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

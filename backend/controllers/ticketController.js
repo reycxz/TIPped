@@ -1,5 +1,6 @@
 const Ticket = require('../models/Ticket');
 const { generateTicketId } = require('../utils/ticketIdGenerator');
+const { sendStatusUpdateEmail } = require('../utils/emailService');
 
 // @desc    Get dynamic KPI metrics
 // @route   GET /api/tickets/metrics
@@ -146,5 +147,100 @@ exports.getAdminTickets = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// @desc    Update ticket status, priority, category, or add admin remarks
+// @route   PUT /api/tickets/:id
+// @access  Private (Department & Superadmin only)
+exports.updateTicket = async (req, res) => {
+  try {
+    const { status, priority, category, adminNote } = req.body;
+
+    const ticket = await Ticket.findById(req.params.id).populate('submittedBy');
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // RBAC check for Department Staff
+    if (req.user.role === 'Department' && ticket.category !== req.user.departmentCategory) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+
+    // Constraint 1: If Admin changes status to 'Resolved', the Admin Note becomes required
+    if (status === 'Resolved' && (!adminNote || !adminNote.trim())) {
+      return res.status(400).json({ error: 'Admin note is required to resolve ticket' });
+    }
+
+    let statusChanged = false;
+    const oldStatus = ticket.status;
+    if (status && status !== oldStatus) {
+      ticket.status = status;
+      statusChanged = true;
+      ticket.auditTrail.push({
+        action: 'Status Update',
+        details: `Status changed to ${status}`,
+        performedBy: req.user._id,
+      });
+    }
+
+    if (priority && priority !== ticket.priority) {
+      ticket.priority = priority;
+      ticket.auditTrail.push({
+        action: 'Priority Update',
+        details: `Priority changed to ${priority}`,
+        performedBy: req.user._id,
+      });
+    }
+
+    // Silent Department Transfers: appends silent log to auditTrail without emailing user
+    if (category && category !== ticket.category) {
+      ticket.category = category;
+      ticket.auditTrail.push({
+        action: 'Department Re-assignment',
+        details: `Re-assigned to ${category}`,
+        performedBy: req.user._id,
+      });
+    }
+
+    let noteAdded = false;
+    if (adminNote && adminNote.trim()) {
+      noteAdded = true;
+      ticket.adminRemarks.push({
+        note: adminNote.trim(),
+        updatedBy: req.user._id,
+        timestamp: new Date(),
+      });
+      ticket.auditTrail.push({
+        action: 'Admin Note',
+        details: adminNote.trim(),
+        performedBy: req.user._id,
+      });
+    }
+
+    await ticket.save();
+
+    // Constraint 3: Dispatch formal plain text email via Nodemailer if status changed or note submitted
+    if ((statusChanged || noteAdded) && ticket.submittedBy?.email) {
+      const formattedTimestamp = new Date().toLocaleString();
+      await sendStatusUpdateEmail({
+        to: ticket.submittedBy.email,
+        ticketId: ticket.ticketId,
+        timestamp: formattedTimestamp,
+        campus: ticket.campus,
+        room: ticket.locationInfo?.room || '',
+        category: ticket.category,
+        newStatus: ticket.status,
+        adminNote: adminNote ? adminNote.trim() : '',
+      });
+    }
+
+    res.json({
+      message: 'Ticket updated',
+      ticket,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 

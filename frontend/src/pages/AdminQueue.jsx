@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getMetrics, getAdminTickets } from '../api/tickets';
+import TicketDrawer from '../components/TicketDrawer';
 import { Search, Filter, SlidersHorizontal, Eye, X } from 'lucide-react';
 
 export default function AdminQueue({ user }) {
@@ -13,6 +14,10 @@ export default function AdminQueue({ user }) {
   // Tickets initialized as empty array (true empty state)
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Drawer state
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Constraint 2: Icon-driven controls
   const [searchOpen, setSearchOpen] = useState(false);
@@ -295,6 +300,10 @@ export default function AdminQueue({ user }) {
                     <td className="px-4 py-3.5 text-right">
                       <button
                         type="button"
+                        onClick={() => {
+                          setSelectedTicket(ticket);
+                          setDrawerOpen(true);
+                        }}
                         aria-label="Manage"
                         className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-background transition-colors"
                       >
@@ -308,6 +317,17 @@ export default function AdminQueue({ user }) {
           </table>
         </div>
       </div>
+
+      {/* Ticket Management Drawer */}
+      <TicketDrawer
+        ticket={selectedTicket}
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onUpdateSuccess={() => {
+          fetchTicketsData();
+          fetchMetricsData();
+        }}
+      />
     </div>
   );
 }
