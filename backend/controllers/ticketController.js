@@ -109,3 +109,42 @@ exports.createTicket = async (req, res) => {
   }
 };
 
+// @desc    Get admin tickets with RBAC scoping & filters
+// @route   GET /api/tickets/admin
+// @access  Private (Department & Superadmin only)
+exports.getAdminTickets = async (req, res) => {
+  try {
+    const query = {};
+
+    // Constraint 3 (RBAC): Department Staff only fetch tickets matching their department category
+    if (req.user.role === 'Department') {
+      if (!req.user.departmentCategory) {
+        return res.json([]);
+      }
+      query.category = req.user.departmentCategory;
+    }
+    // Superadmin fetches all departments
+
+    // Filter by campus
+    if (req.query.campus && req.query.campus !== 'All') {
+      query.campus = req.query.campus;
+    }
+
+    // Filter by status
+    if (req.query.status && req.query.status !== 'All') {
+      query.status = req.query.status;
+    }
+
+    // Search by Ticket ID
+    if (req.query.search && req.query.search.trim()) {
+      query.ticketId = { $regex: req.query.search.trim(), $options: 'i' };
+    }
+
+    const tickets = await Ticket.find(query).sort({ createdAt: -1 });
+    res.json(tickets);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+

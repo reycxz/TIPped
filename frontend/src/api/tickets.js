@@ -30,4 +30,9 @@ export const createTicket = async (ticketData) => {
   return response.data;
 };
 
+export const getAdminTickets = async (params = {}) => {
+  const response = await api.get('/admin', { params });
+  return response.data;
+};
+
 export default api;
