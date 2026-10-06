@@ -3,10 +3,12 @@ const router = express.Router();
 const ticketController = require('../controllers/ticketController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 
+const upload = require('../middleware/upload');
+
 router.get('/metrics', verifyToken, ticketController.getMetrics);
 router.get('/my-tickets', verifyToken, ticketController.getMyTickets);
 router.get('/admin', verifyToken, requireRole('Department', 'Superadmin'), ticketController.getAdminTickets);
-router.post('/', verifyToken, ticketController.createTicket);
+router.post('/', verifyToken, upload.array('images', 5), ticketController.createTicket);
 router.put('/:id', verifyToken, requireRole('Department', 'Superadmin'), ticketController.updateTicket);
 
 module.exports = router;

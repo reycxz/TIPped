@@ -29,6 +29,7 @@ export default function CameraFAB() {
             name: file.name,
             size: file.size,
             dataUrl: reader.result,
+            file,
           });
         };
         reader.readAsDataURL(file);

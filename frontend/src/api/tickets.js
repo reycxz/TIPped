@@ -26,7 +26,10 @@ export const getMyTickets = async () => {
 };
 
 export const createTicket = async (ticketData) => {
-  const response = await api.post('/', ticketData);
+  const isFormData = typeof FormData !== 'undefined' && ticketData instanceof FormData;
+  const response = await api.post('/', ticketData, {
+    headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
+  });
   return response.data;
 };
 

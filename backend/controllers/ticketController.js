@@ -1,6 +1,7 @@
 const Ticket = require('../models/Ticket');
 const { generateTicketId } = require('../utils/ticketIdGenerator');
 const { sendStatusUpdateEmail } = require('../utils/emailService');
+const { streamUpload, uploadDirect } = require('../config/cloudinary');
 
 // @desc    Get dynamic KPI metrics
 // @route   GET /api/tickets/metrics
@@ -49,7 +50,7 @@ exports.getMyTickets = async (req, res) => {
 // @access  Private
 exports.createTicket = async (req, res) => {
   try {
-    const { campus, building, floor, room, landmark, category, description, images } = req.body;
+    const { campus, building, floor, room, landmark, category, description } = req.body;
 
     if (!campus || !building || floor === undefined || !room || !category || !description) {
       return res.status(400).json({ error: 'Missing fields' });
@@ -68,6 +69,47 @@ exports.createTicket = async (req, res) => {
     const firstDigitMatch = String(room).match(/\d/);
     if (!firstDigitMatch || firstDigitMatch[0] !== String(floor)) {
       return res.status(400).json({ error: 'Floor mismatch' });
+    }
+
+    // Constraint 1 & 2 (Cloudinary): Stream images directly to Cloudinary, never store base64 in MongoDB
+    const imageUrls = [];
+
+    // 1. Process files uploaded via Multer (streamed directly to Cloudinary)
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      for (const file of req.files) {
+        if (file.buffer) {
+          const result = await streamUpload(file.buffer);
+          if (result && result.secure_url) {
+            imageUrls.push(result.secure_url);
+          }
+        }
+      }
+    }
+
+    // 2. Process image strings if provided in req.body (e.g. from JSON payloads)
+    let bodyImages = req.body.images;
+    if (typeof bodyImages === 'string') {
+      try {
+        bodyImages = JSON.parse(bodyImages);
+      } catch (e) {
+        bodyImages = [bodyImages];
+      }
+    }
+
+    if (Array.isArray(bodyImages) && bodyImages.length > 0) {
+      for (const img of bodyImages) {
+        if (typeof img === 'string') {
+          if (img.startsWith('http://') || img.startsWith('https://')) {
+            imageUrls.push(img);
+          } else if (img.startsWith('data:image/') || img.length > 100) {
+            // Upload to Cloudinary and store only secure_url - never save base64 to MongoDB
+            const result = await uploadDirect(img);
+            if (result && result.secure_url) {
+              imageUrls.push(result.secure_url);
+            }
+          }
+        }
+      }
     }
 
     // Constraint 3: Generate hash-based Ticket ID [CAMPUS]-[DEPT][MMDD][5-CHAR-HASH]
@@ -93,7 +135,7 @@ exports.createTicket = async (req, res) => {
       },
       category: category.trim(),
       description: description.trim(),
-      images: Array.isArray(images) ? images : [],
+      images: imageUrls,
       status: 'Pending',
       adminRemarks: [],
       submittedBy: req.user ? req.user._id : null

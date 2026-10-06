@@ -90,6 +90,7 @@ export default function CreateReport() {
             name: file.name,
             size: file.size,
             dataUrl: reader.result,
+            file,
           });
         };
         reader.readAsDataURL(file);
@@ -119,18 +120,44 @@ export default function CreateReport() {
     setLoading(true);
 
     try {
-      const payload = {
-        campus,
-        building,
-        floor: Number(floor),
-        room: room.trim(),
-        landmark: landmark.trim(),
-        category,
-        description: description.trim(),
-        images: photos.map((p) => p.dataUrl || p),
-      };
+      const formData = new FormData();
+      formData.append('campus', campus);
+      formData.append('building', building);
+      formData.append('floor', floor);
+      formData.append('room', room.trim());
+      if (landmark) formData.append('landmark', landmark.trim());
+      formData.append('category', category);
+      formData.append('description', description.trim());
 
-      await createTicket(payload);
+      photos.forEach((photo) => {
+        if (photo.file instanceof File) {
+          formData.append('images', photo.file);
+        } else if (photo.dataUrl && photo.dataUrl.startsWith('data:image/')) {
+          const arr = photo.dataUrl.split(',');
+          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          formData.append('images', blob, photo.name || 'photo.jpg');
+        } else if (typeof photo === 'string' && photo.startsWith('data:image/')) {
+          const arr = photo.split(',');
+          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          formData.append('images', blob, 'photo.jpg');
+        }
+      });
+
+      await createTicket(formData);
       navigate('/my-reports');
     } catch (err) {
       setGeneralError(err.response?.data?.error || 'Submission failed');
