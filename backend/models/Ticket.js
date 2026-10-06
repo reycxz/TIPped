@@ -85,6 +85,11 @@ const ticketSchema = new mongoose.Schema(
     adminRemarks: {
       type: [adminRemarkSchema],
       default: []
+    },
+    submittedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
     }
   },
   {

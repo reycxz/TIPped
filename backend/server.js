@@ -17,6 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const authRoutes = require('./routes/authRoutes');
+const ticketRoutes = require('./routes/ticketRoutes');
 
 // Basic Health Check Route
 app.get('/api/health', (req, res) => {
@@ -25,6 +26,9 @@ app.get('/api/health', (req, res) => {
 
 // Authentication Routes
 app.use('/api/auth', authRoutes);
+
+// Ticket Routes
+app.use('/api/tickets', ticketRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {
