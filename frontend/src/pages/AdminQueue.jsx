@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { getMetrics, getAdminTickets, getCategories } from '../api/tickets';
 import {
@@ -412,32 +413,32 @@ export default function AdminQueue({ user }) {
         {/* Tab Switcher visible ONLY to Superadmins */}
         {user?.role === 'Superadmin' && (
           <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80">
-            <button
-              type="button"
-              onClick={() => setActiveTab('queue')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                activeTab === 'queue'
-                  ? 'bg-primary text-slate-900 shadow-md'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
-              }`}
-            >
-              <span>Queue</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('routing')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                activeTab === 'routing'
-                  ? 'bg-primary text-slate-900 shadow-md'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Manage Routing</span>
-            </button>
-          </div>
-        )}
-      </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('queue')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
+                  activeTab === 'queue'
+                    ? 'bg-primary text-slate-900 shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <span>Queue</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('routing')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
+                  activeTab === 'routing'
+                    ? 'bg-primary text-slate-900 shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Manage Routing</span>
+              </button>
+            </div>
+          )}
+        </div>
 
       {/* ========================================================= */}
       {/* SECTION 1: QUEUE TAB */}

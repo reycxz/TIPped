@@ -124,14 +124,31 @@ const ticketSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       default: null
+    },
+    // Constraint 1: Soft-delete archive flag and timestamp
+    isArchived: {
+      type: Boolean,
+      default: false
+    },
+    archivedAt: {
+      type: Date,
+      default: null
     }
   },
   {
     timestamps: true
   }
+);
 
+// Constraint 1: MongoDB TTL index to auto-delete documents 30 days (2592000s) after archiving
+const reportSchema = ticketSchema;
+reportSchema.index(
+  { archivedAt: 1 },
+  { expireAfterSeconds: 2592000, partialFilterExpression: { isArchived: true } }
 );
 
 const Ticket = mongoose.model('Ticket', ticketSchema);
 
 module.exports = Ticket;
+module.exports.reportSchema = reportSchema;
+module.exports.ticketSchema = ticketSchema;

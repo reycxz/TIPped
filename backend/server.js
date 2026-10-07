@@ -20,6 +20,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const adminDataRoutes = require('./routes/adminDataRoutes');
@@ -38,8 +39,9 @@ app.use('/api/admin', adminRoutes);
 // User Management Routes
 app.use('/api/users', userRoutes);
 
-// Ticket Routes
+// Ticket & Report Routes
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Admin Data Routes (Departments & Categories)
 app.use('/api/departments', departmentRoutes);

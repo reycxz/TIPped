@@ -47,7 +47,6 @@ export default function Profile({ user, onProfileUpdated }) {
   const activeAvatarObj =
     PRESET_AVATARS.find((a) => a.id === avatar) || PRESET_AVATARS[0];
 
-  // Constraint 5: Handler 1 - Main Profile Update
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -61,7 +60,6 @@ export default function Profile({ user, onProfileUpdated }) {
         avatar,
       };
 
-      // Strictly include program only if user is a student/user
       const isUserRole = user?.role === 'user' || user?.role === 'User';
       if (isUserRole) {
         payload.program = program;
@@ -83,7 +81,6 @@ export default function Profile({ user, onProfileUpdated }) {
     }
   };
 
-  // Constraint 5: Handler 2 - Security Password Update
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setPasswordError('');
@@ -142,7 +139,6 @@ export default function Profile({ user, onProfileUpdated }) {
           </div>
         )}
 
-        {/* Constraint 2: Avatar card with role badge positioned inline right next to the user's name */}
         <div className="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 transition-colors">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -168,7 +164,6 @@ export default function Profile({ user, onProfileUpdated }) {
               </div>
             </div>
 
-            {/* Avatar Picker Trigger */}
             <button
               type="button"
               onClick={() => setShowPicker(!showPicker)}
@@ -179,7 +174,6 @@ export default function Profile({ user, onProfileUpdated }) {
             </button>
           </div>
 
-          {/* Grid of 6 static preset avatar images */}
           {showPicker && (
             <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 grid grid-cols-6 gap-3">
               {PRESET_AVATARS.map((av) => (
@@ -207,7 +201,6 @@ export default function Profile({ user, onProfileUpdated }) {
           )}
         </div>
 
-        {/* Main Profile Form */}
         <form onSubmit={handleProfileSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -239,7 +232,6 @@ export default function Profile({ user, onProfileUpdated }) {
             </div>
           </div>
 
-          {/* Constraint 3: Locked Email Field */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Email
@@ -248,74 +240,43 @@ export default function Profile({ user, onProfileUpdated }) {
               type="email"
               disabled
               value={email}
-              placeholder="Email"
-              className="w-full px-3 py-2.5 opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-500 dark:text-slate-400 focus:outline-none"
+              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed"
             />
           </div>
 
-          {/* Constraint 1: Strict Role-Based Hiding for Update Academic Program */}
           {(user?.role === 'user' || user?.role === 'User') && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                Update Academic Program
+                Degree / Program
               </label>
-              <select
-                name="program"
+              <input
+                type="text"
                 value={program}
                 onChange={(e) => setProgram(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors cursor-pointer"
-              >
-                <option value="" disabled>
-                  Select your program
-                </option>
-                <optgroup label="College of Engineering and Architecture">
-                  <option value="BS Architecture">BS Architecture</option>
-                  <option value="BS Chemical Engineering">BS Chemical Engineering</option>
-                  <option value="BS Civil Engineering">BS Civil Engineering</option>
-                  <option value="BS Computer Engineering">BS Computer Engineering</option>
-                  <option value="BS Electrical Engineering">BS Electrical Engineering</option>
-                  <option value="BS Electronics Engineering">BS Electronics Engineering</option>
-                  <option value="BS Industrial Engineering">BS Industrial Engineering</option>
-                  <option value="BS Mechanical Engineering">BS Mechanical Engineering</option>
-                </optgroup>
-                <optgroup label="College of Computer Studies">
-                  <option value="BS Computer Science">BS Computer Science</option>
-                  <option value="BS Information Systems">BS Information Systems</option>
-                  <option value="BS Information Technology">BS Information Technology</option>
-                </optgroup>
-                <optgroup label="College of Business Education">
-                  <option value="BS Accountancy">BS Accountancy</option>
-                  <option value="BS Accounting Information Systems">BS Accounting Information Systems</option>
-                  <option value="BS Business Administration">BS Business Administration</option>
-                </optgroup>
-                <optgroup label="College of Arts">
-                  <option value="BA Political Science">BA Political Science</option>
-                </optgroup>
-              </select>
+                placeholder="e.g. BS Information Technology"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              />
             </div>
           )}
 
-          {/* Constraint 4: Dedicated Update Profile button without Change Password button */}
           <div className="pt-2">
             <button
               type="submit"
               disabled={loading}
-              className="w-full sm:w-auto py-2.5 px-6 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
+              className="py-2.5 px-6 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
             >
-              {loading ? 'Saving...' : 'Update Profile'}
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* ===================== Constraint 4: Separate Security Card ===================== */}
+      {/* ===================== Security Card ===================== */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 sm:p-8 shadow-xl transition-colors duration-200">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Security</h2>
-        </div>
+        <h2 className="text-base font-bold text-slate-900 dark:text-white mb-6">Security & Password</h2>
 
         {passwordError && (
-          <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 flex items-center space-x-2 text-xs" role="alert">
+          <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 flex items-center space-x-2 text-xs">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{passwordError}</span>
           </div>

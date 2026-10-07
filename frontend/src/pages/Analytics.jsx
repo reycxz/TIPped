@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { getAnalytics, getCategories } from '../api/tickets';
-import { getDepartmentAccounts, createDepartmentAccount, updateDepartmentAccount, deleteDepartmentAccount, deleteUserAccount } from '../api/auth';
-import { Plus, Trash2, Edit2, X, AlertCircle, CheckCircle2, Shield, Users, BarChart3, Building } from 'lucide-react';
+import { getCategories } from '../api/tickets';
+import { getDepartmentAccounts, createDepartmentAccount, updateDepartmentAccount } from '../api/auth';
+import { Plus, Trash2, Edit2, X, AlertCircle, CheckCircle2, Shield, Users, Building } from 'lucide-react';
 
 export default function Analytics({ user }) {
-  const [analytics, setAnalytics] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [timeframe, setTimeframe] = useState('All Time');
+  const [campus, setCampus] = useState('All');
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Administrative Department accounts state
+  const [accounts, setAccounts] = useState([]);
+  const [allCategories, setAllCategories] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Backward compatibility alias
-  const departments = accounts;
-  const setDepartments = setAccounts;
-
-  // Department Modal states
+  // Department Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [formData, setFormData] = useState({
@@ -28,28 +28,57 @@ export default function Analytics({ user }) {
     departmentCategory: '',
   });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [analyticsData, deptsData, catsData] = await Promise.all([
-        getAnalytics(),
-        getDepartmentAccounts(),
-        getCategories(),
-      ]);
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAnalytics = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        const response = await axios.get(
+          `/api/reports/analytics?campus=${campus}&timeframe=${timeframe}`,
+          config
+        );
+        const data = response.data;
+        console.log('Analytics API Data:', data);
+        if (isMounted) {
+          setStats(data);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.response?.data?.error || 'Failed to fetch analytics');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
 
-      setAnalytics(analyticsData);
-      setAccounts(Array.isArray(deptsData) ? deptsData : []);
-      setCategories(Array.isArray(catsData) ? catsData : []);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Load failed');
-    } finally {
-      setLoading(false);
+    fetchAnalytics();
+    return () => {
+      isMounted = false;
+    };
+  }, [campus, timeframe]);
+
+  const loadAdminAccounts = async () => {
+    if (user?.role === 'Superadmin' || user?.role?.toLowerCase() === 'superadmin') {
+      try {
+        const [deptsData, catsData] = await Promise.all([
+          getDepartmentAccounts(),
+          getCategories(),
+        ]);
+        setAccounts(Array.isArray(deptsData) ? deptsData : []);
+        setAllCategories(Array.isArray(catsData) ? catsData : []);
+      } catch (err) {
+        console.error('Failed to load department accounts:', err);
+      }
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    loadAdminAccounts();
+  }, [user]);
 
   const openCreateModal = () => {
     setEditingDept(null);
@@ -58,8 +87,8 @@ export default function Analytics({ user }) {
       lastName: '',
       email: '',
       password: '',
-      assignedCategories: categories.length > 0 ? [categories[0]] : [],
-      departmentCategory: categories[0] || 'ITSO',
+      assignedCategories: allCategories.length > 0 ? [allCategories[0]] : [],
+      departmentCategory: allCategories[0] || 'ITSO',
     });
     setModalOpen(true);
     setError('');
@@ -70,7 +99,7 @@ export default function Analytics({ user }) {
     setEditingDept(dept);
     const existingCats = Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
       ? dept.assignedCategories
-      : (dept.departmentCategory ? [dept.departmentCategory] : (categories.length > 0 ? [categories[0]] : []));
+      : (dept.departmentCategory ? [dept.departmentCategory] : (allCategories.length > 0 ? [allCategories[0]] : []));
 
     setFormData({
       firstName: dept.firstName || '',
@@ -78,7 +107,7 @@ export default function Analytics({ user }) {
       email: dept.email || '',
       password: '',
       assignedCategories: existingCats,
-      departmentCategory: existingCats[0] || categories[0] || 'ITSO',
+      departmentCategory: existingCats[0] || allCategories[0] || 'ITSO',
     });
     setModalOpen(true);
     setError('');
@@ -115,15 +144,14 @@ export default function Analytics({ user }) {
         setSuccess('Account created');
       }
       setModalOpen(false);
-      fetchData();
+      loadAdminAccounts();
     } catch (err) {
       setError(err.response?.data?.error || 'Save failed');
     }
   };
 
-  // Constraint 3: Asynchronous handleDeleteAccount with browser confirmation & instant state filtering
   const handleDeleteAccount = async (accountId) => {
-    if (!window.confirm("Permanently delete this account from the database?")) {
+    if (!window.confirm('Permanently delete this account from the database?')) {
       return;
     }
     setError('');
@@ -132,7 +160,6 @@ export default function Analytics({ user }) {
     try {
       const token = localStorage.getItem('token');
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-      
       const response = await axios.delete(`/api/admin/users/${accountId}`, config);
 
       if (response.status === 200) {
@@ -144,235 +171,327 @@ export default function Analytics({ user }) {
     }
   };
 
-  const handleDeleteDepartment = handleDeleteAccount;
-
-  if (loading) {
-    return (
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-16 text-center text-muted text-sm">
-        Loading...
-      </div>
-    );
-  }
-
-  const categoryCounts = analytics?.categoryCounts || {};
+  const totalCount = stats?.total ?? 0;
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Header - 1-2 words only, no subtitles */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-6 shadow-sm">
-        <h1 className="text-xl sm:text-2xl font-bold text-text">
-          Analytics
-        </h1>
+      {/* Top Header with Campus and Timeframe Select Dropdowns at Top Right */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-colors duration-200">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+            Analytics
+          </h1>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Campus Select Dropdown */}
+          <select
+            value={campus}
+            onChange={(e) => setCampus(e.target.value)}
+            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
+          >
+            <option value="All">All</option>
+            <option value="Arlegui">Arlegui</option>
+            <option value="Casal">Casal</option>
+          </select>
+
+          {/* Timeframe Select Dropdown */}
+          <select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
+          >
+            <option value="Last 7 Days">Last 7 Days</option>
+            <option value="Last 30 Days">Last 30 Days</option>
+            <option value="All Time">All Time</option>
+          </select>
+        </div>
       </div>
 
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/40 text-red-400 text-xs rounded-lg flex items-center space-x-2">
-          <AlertCircle className="w-4 h-4" />
+        <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-500 text-xs rounded-lg flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 text-xs rounded-lg flex items-center space-x-2 font-mono">
-          <CheckCircle2 className="w-4 h-4" />
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs rounded-lg flex items-center space-x-2 font-mono">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{success}</span>
         </div>
       )}
 
-      {/* KPI Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Total Tickets
-          </div>
-          <div className="text-3xl font-extrabold text-text mt-2">
-            {analytics?.totalTickets || 0}
-          </div>
+      {/* Loading Spinner */}
+      {loading ? (
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-16 text-center shadow-sm flex flex-col items-center justify-center space-y-3">
+          <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Loading analytics...</span>
         </div>
-
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Pending
-          </div>
-          <div className="text-3xl font-extrabold text-pending mt-2">
-            {analytics?.pendingCount || 0}
-          </div>
-        </div>
-
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            In Progress
-          </div>
-          <div className="text-3xl font-extrabold text-inProgress mt-2">
-            {analytics?.inProgressCount || 0}
-          </div>
-        </div>
-
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Resolved
-          </div>
-          <div className="text-3xl font-extrabold text-resolved mt-2">
-            {analytics?.resolvedCount || 0}
-          </div>
-        </div>
-      </div>
-
-      {/* Campus & Users Breakdown */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Campus Distribution */}
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Campus Volume
-          </div>
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <div className="p-3 bg-background rounded-lg border border-slate-700/60">
-              <div className="text-xs text-muted">Arlegui</div>
-              <div className="text-xl font-bold text-text mt-1">
-                {analytics?.arleguiCount || 0}
+      ) : (
+        <>
+          {/* Stat Cards (Total, Pending, In Progress, Resolved) without subtext lines */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Total Tickets Card */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Total Tickets
+                </span>
+                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
+                {stats?.total ?? 0}
               </div>
             </div>
-            <div className="p-3 bg-background rounded-lg border border-slate-700/60">
-              <div className="text-xs text-muted">Casal</div>
-              <div className="text-xl font-bold text-text mt-1">
-                {analytics?.casalCount || 0}
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Users & Staff Counts */}
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Account Directory
-          </div>
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <div className="p-3 bg-background rounded-lg border border-slate-700/60">
-              <div className="text-xs text-muted">Students / Users</div>
-              <div className="text-xl font-bold text-text mt-1">
-                {analytics?.totalUsers || 0}
+            {/* Pending Card */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Pending
+                </span>
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-3xl font-extrabold text-amber-500 mt-3">
+                {stats?.pending ?? 0}
               </div>
             </div>
-            <div className="p-3 bg-background rounded-lg border border-slate-700/60">
-              <div className="text-xs text-muted">Department Accounts</div>
-              <div className="text-xl font-bold text-text mt-1">
-                {analytics?.totalDeptStaff || 0}
+
+            {/* In Progress Card */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  In Progress
+                </span>
+                <div className="p-2 rounded-lg bg-sky-500/10 text-sky-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-3xl font-extrabold text-sky-500 mt-3">
+                {stats?.inProgress ?? 0}
+              </div>
+            </div>
+
+            {/* Resolved Card */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Resolved
+                </span>
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-3xl font-extrabold text-emerald-500 mt-3">
+                {stats?.resolved ?? 0}
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Categories Breakdown */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-          Categories Breakdown
-        </div>
-        {Object.keys(categoryCounts).length === 0 ? (
-          <div className="text-xs text-muted italic py-4">No data</div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
-            {Object.entries(categoryCounts).map(([cat, count]) => (
-              <div
-                key={cat}
-                className="p-3 bg-background rounded-lg border border-slate-700/60 flex items-center justify-between"
-              >
-                <span className="text-xs text-text font-medium">{cat}</span>
-                <span className="text-sm font-bold text-primary font-mono">{count}</span>
+          {/* Account Directory */}
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Account Directory
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">User Accounts</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {stats?.userAccounts ?? stats?.accountDirectory?.user ?? 0}
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
+                  <Users className="w-4 h-4" />
+                </div>
               </div>
-            ))}
+
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Department Accounts</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {stats?.departmentAccounts ?? stats?.accountDirectory?.department ?? 0}
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                  <Building className="w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Guest Accounts</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {stats?.guestAccounts ?? stats?.accountDirectory?.guest ?? 0}
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-500/10 text-slate-400">
+                  <Shield className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Categories Breakdown Section - Sleek & Compact */}
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Categories Breakdown
+              </div>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                {stats?.categories?.length || 0} categories
+              </span>
+            </div>
+
+            {(!stats?.categories || stats.categories.length === 0) ? (
+              <div className="text-xs text-slate-500 dark:text-slate-400 italic py-4 text-center">
+                No category data recorded
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {stats.categories.map((category) => {
+                  const percentage = totalCount > 0
+                    ? Math.round((category.count / totalCount) * 100)
+                    : 0;
+                  const barWidth = totalCount > 0
+                    ? `${(category.count / totalCount) * 100}%`
+                    : '0%';
+
+                  return (
+                    <div key={category.name} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-1.5 min-w-0">
+                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                            {category.name}
+                          </span>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono shrink-0">
+                            ({percentage}%)
+                          </span>
+                        </div>
+                        <span className="font-semibold text-slate-900 dark:text-white font-mono shrink-0">
+                          {category.count}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-700/60 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-amber-500 h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: barWidth }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Superadmin Department Accounts Management */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-bold text-text">Department Accounts</div>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="py-1.5 px-3 bg-primary hover:bg-amber-500 text-background rounded-lg text-xs font-semibold transition-colors flex items-center space-x-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Create Account</span>
-          </button>
+      {(user?.role === 'Superadmin' || user?.role?.toLowerCase() === 'superadmin') && (
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-bold text-slate-900 dark:text-white">
+              Department Accounts
+            </div>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="py-1.5 px-3 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-xs font-semibold transition-colors flex items-center space-x-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create Account</span>
+            </button>
+          </div>
+
+          {accounts.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-xs">
+              No active accounts
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200 dark:divide-slate-700/60">
+              {accounts.map((dept) => (
+                <div
+                  key={dept._id}
+                  className="py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900/50 px-2 rounded-lg transition-colors"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">
+                      {dept.firstName} {dept.lastName}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 flex flex-wrap items-center gap-1">
+                      <span>{dept.email} •</span>
+                      <span>Categories:</span>
+                      {(Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
+                        ? dept.assignedCategories
+                        : [dept.departmentCategory || 'General']
+                      ).map((c) => (
+                        <span key={c} className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-semibold">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(dept)}
+                      aria-label="Edit"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAccount(dept._id)}
+                      aria-label="Delete"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-
-        {accounts.length === 0 ? (
-          <div className="p-8 text-center text-muted text-xs">
-            No active accounts
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-700/40">
-            {accounts.map((dept) => (
-              <div
-                key={dept._id}
-                className="py-3 flex items-center justify-between hover:bg-background/40 px-2 rounded-lg transition-colors"
-              >
-                <div>
-                  <div className="text-xs font-bold text-text">
-                    {dept.firstName} {dept.lastName}
-                  </div>
-                  <div className="text-[11px] text-muted font-mono mt-0.5 flex flex-wrap items-center gap-1">
-                    <span>{dept.email} •</span>
-                    <span className="text-muted">Categories:</span>
-                    {(Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
-                      ? dept.assignedCategories
-                      : [dept.departmentCategory || 'General']
-                    ).map((c) => (
-                      <span key={c} className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold">
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(dept)}
-                    aria-label="Edit"
-                    className="p-1.5 rounded-lg text-muted hover:text-text hover:bg-background transition-colors"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteAccount(dept._id)}
-                    aria-label="Delete"
-                    className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-background transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Create / Edit Department Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-surface border border-slate-700 rounded-xl p-6 shadow-2xl relative">
+          <div className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-2xl relative">
             <button
               type="button"
               onClick={() => setModalOpen(false)}
               aria-label="Close"
-              className="absolute top-4 right-4 text-muted hover:text-text transition-colors"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-base font-bold text-text mb-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white mb-4">
               {editingDept ? 'Edit Account' : 'Create Account'}
             </h2>
 
             <form onSubmit={handleSaveDepartment} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                     First Name
                   </label>
                   <input
@@ -381,11 +500,11 @@ export default function Analytics({ user }) {
                     value={formData.firstName}
                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                     placeholder="First Name"
-                    className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                     Last Name
                   </label>
                   <input
@@ -394,14 +513,14 @@ export default function Analytics({ user }) {
                     value={formData.lastName}
                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                     placeholder="Last Name"
-                    className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
 
               {!editingDept && (
                 <div>
-                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                     Email
                   </label>
                   <input
@@ -410,29 +529,28 @@ export default function Analytics({ user }) {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="Email"
-                    className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               )}
 
-              {/* Constraint 2: Multi-Select Categories UI */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider">
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Categories
                   </label>
-                  <span className="text-[11px] text-muted">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
                     {formData.assignedCategories.length} selected
                   </span>
                 </div>
-                <div className="w-full max-h-36 overflow-y-auto bg-background border border-slate-700 rounded-lg p-2 space-y-1.5">
-                  {categories.map((cat) => {
+                <div className="w-full max-h-36 overflow-y-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-1.5">
+                  {allCategories.map((cat) => {
                     const isChecked = formData.assignedCategories.includes(cat);
                     return (
                       <label
                         key={cat}
                         className={`flex items-center space-x-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors text-xs ${
-                          isChecked ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-slate-800 text-text'
+                          isChecked ? 'bg-amber-500/10 text-amber-500 font-medium' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
                         <input
@@ -453,14 +571,14 @@ export default function Analytics({ user }) {
                               };
                             });
                           }}
-                          className="w-3.5 h-3.5 rounded border-slate-600 text-primary focus:ring-0 focus:ring-offset-0 bg-background"
+                          className="w-3.5 h-3.5 rounded border-slate-400 text-amber-500 focus:ring-0 focus:ring-offset-0 bg-white dark:bg-slate-900"
                         />
                         <span>{cat}</span>
                       </label>
                     );
                   })}
-                  {categories.length === 0 && (
-                    <div className="text-xs text-muted text-center py-2">
+                  {allCategories.length === 0 && (
+                    <div className="text-xs text-slate-500 dark:text-slate-400 text-center py-2">
                       No categories available
                     </div>
                   )}
@@ -468,7 +586,7 @@ export default function Analytics({ user }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   {editingDept ? 'New Password' : 'Password'}
                 </label>
                 <input
@@ -478,13 +596,13 @@ export default function Analytics({ user }) {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="Password"
-                  className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text placeholder-slate-500 focus:outline-none focus:border-primary"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-primary hover:bg-amber-500 text-background font-semibold rounded-lg text-xs transition-colors mt-2"
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg text-xs transition-colors mt-2"
               >
                 Save
               </button>

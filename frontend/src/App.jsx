@@ -10,6 +10,7 @@ import MyReports from './pages/MyReports';
 import AdminQueue from './pages/AdminQueue';
 import Analytics from './pages/Analytics';
 import Profile from './pages/Profile';
+import ArchivedReports from './pages/ArchivedReports';
 import { getMe } from './api/auth';
 
 export default function App() {
@@ -93,17 +94,20 @@ export default function App() {
           />
         </Route>
 
-        {/* Staff & Admin Routes - Protected with RBAC */}
+        {/* Staff & Admin Routes - Protected with RBAC (Superadmin & Department) */}
         <Route
           element={
             <ProtectedLayout
               user={currentUser}
               onLogout={handleLogout}
-              allowedRoles={['Department', 'Superadmin']}
+              allowedRoles={['Department', 'Superadmin', 'department', 'superadmin']}
             />
           }
         >
           <Route path="/admin" element={<AdminQueue user={currentUser} />} />
+          <Route path="/admin/archive" element={<ArchivedReports user={currentUser} />} />
+          <Route path="/archive" element={<ArchivedReports user={currentUser} />} />
+          <Route path="/reports/archived" element={<ArchivedReports user={currentUser} />} />
         </Route>
 
         {/* Superadmin Only Route */}
@@ -112,7 +116,7 @@ export default function App() {
             <ProtectedLayout
               user={currentUser}
               onLogout={handleLogout}
-              allowedRoles={['Superadmin']}
+              allowedRoles={['Superadmin', 'Department', 'superadmin', 'department']}
             />
           }
         >

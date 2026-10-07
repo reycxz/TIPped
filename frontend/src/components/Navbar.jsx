@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import TippedLogo from './TippedLogo';
-import { Settings, User, Moon, Sun, LogOut } from 'lucide-react';
+import { Settings, User, Moon, Sun, LogOut, Archive } from 'lucide-react';
 
 export default function Navbar({ userRole = 'User', onLogout, isLanding = false }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -92,14 +92,19 @@ export default function Navbar({ userRole = 'User', onLogout, isLanding = false 
               )}
 
               {/* Department Staff Navigation */}
-              {userRole === 'Department' && (
-                <NavLink to="/admin" className={navLinkClass}>
-                  Console
-                </NavLink>
+              {(userRole === 'Department' || userRole?.toLowerCase() === 'department') && (
+                <>
+                  <NavLink to="/admin" className={navLinkClass}>
+                    Console
+                  </NavLink>
+                  <NavLink to="/analytics" className={navLinkClass}>
+                    Analytics
+                  </NavLink>
+                </>
               )}
 
               {/* Superadmin Navigation */}
-              {userRole === 'Superadmin' && (
+              {(userRole === 'Superadmin' || userRole?.toLowerCase() === 'superadmin') && (
                 <>
                   <NavLink to="/admin" className={navLinkClass}>
                     Console
@@ -170,6 +175,18 @@ export default function Navbar({ userRole = 'User', onLogout, isLanding = false 
                     </>
                   )}
                 </button>
+
+                {/* Constraint 2: Archived Reports link below Dark Mode toggle */}
+                {['superadmin', 'department'].includes(userRole?.toLowerCase()) && (
+                  <Link
+                    to="/archive"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                  >
+                    <Archive className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
+                    <span>Archived Reports</span>
+                  </Link>
+                )}
 
                 <div className="border-t border-slate-200 dark:border-slate-700/60 my-1" />
 

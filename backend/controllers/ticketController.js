@@ -1,4 +1,5 @@
 const Ticket = require('../models/Ticket');
+const Report = require('../models/Report');
 const Department = require('../models/Department');
 const Category = require('../models/Category');
 const User = require('../models/User');
@@ -62,7 +63,9 @@ const extractImageUrls = async (req) => {
 // @access  Private
 exports.getMetrics = async (req, res) => {
   try {
-    const query = {};
+    const query = {
+      isArchived: { $ne: true }
+    };
     
     // Role-based metric scoping
     if (req.user && req.user.role === 'User') {
@@ -97,7 +100,8 @@ exports.getMetrics = async (req, res) => {
 exports.getMyTickets = async (req, res) => {
   try {
     const query = {
-      $or: [{ submittedBy: req.user._id }, { reportedBy: req.user._id }]
+      $or: [{ submittedBy: req.user._id }, { reportedBy: req.user._id }],
+      isArchived: { $ne: true }
     };
 
     if (req.query.status && req.query.status !== 'All') {
@@ -340,12 +344,14 @@ exports.createGuestTicket = async (req, res) => {
   }
 };
 
-// @desc    Get admin tickets with RBAC scoping & filters
-// @route   GET /api/tickets & GET /api/tickets/admin
+// @desc    Get admin tickets / reports with RBAC scoping & filters (excluding archived)
+// @route   GET /api/tickets, GET /api/tickets/admin, GET /api/reports
 // @access  Private (Department & Superadmin only)
 exports.getTickets = async (req, res) => {
   try {
-    const query = {};
+    const query = {
+      isArchived: { $ne: true }
+    };
 
     // Constraint 3: When a user with the 'Department' role fetches their tickets, use the $in operator to fetch all matching tickets
     // Constraint 4: Status agnostic - returns all tickets matching the categories (Pending, In Progress, Resolved)
@@ -519,55 +525,370 @@ exports.getCategories = async (req, res) => {
   }
 };
 
-// @desc    Get Superadmin analytics based on real backend data
-// @route   GET /api/tickets/analytics
-// @access  Private (Superadmin only)
+// @desc    Get dynamic analytics metrics using Mongoose aggregation
+// @route   GET /api/reports/analytics, GET /api/tickets/analytics
+// @access  Private ('superadmin' and 'department' only)
 exports.getAnalytics = async (req, res) => {
   try {
-    const [
-      totalTickets,
-      pendingCount,
-      inProgressCount,
-      resolvedCount,
-      arleguiCount,
-      casalCount,
-      totalUsers,
-      totalDeptStaff,
-      allTickets
-    ] = await Promise.all([
-      Ticket.countDocuments(),
-      Ticket.countDocuments({ status: 'Pending' }),
-      Ticket.countDocuments({ status: 'In Progress' }),
-      Ticket.countDocuments({ status: 'Resolved' }),
-      Ticket.countDocuments({ campus: 'Arlegui' }),
-      Ticket.countDocuments({ campus: 'Casal' }),
-      User.countDocuments({ role: 'User' }),
+    const role = (req.user?.role || '').toLowerCase();
+    if (!['superadmin', 'department'].includes(role) && !['superadmin', 'department'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+
+    const match = {
+      isArchived: { $ne: true }
+    };
+
+    // Filter by campus (handles exact matches and variants like "Arlegui" or "Arlegui Campus")
+    if (req.query.campus && req.query.campus !== 'All') {
+      const cleanCampus = req.query.campus.trim().replace(/\s+Campus$/i, '');
+      match.campus = { $regex: new RegExp(`^${cleanCampus}`, 'i') };
+    }
+
+    // Filter by timeframe
+    if (req.query.timeframe && req.query.timeframe !== 'All Time' && req.query.timeframe !== 'all') {
+      const now = new Date();
+      if (req.query.timeframe === 'Last 7 Days' || req.query.timeframe === '7d') {
+        match.createdAt = { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) };
+      } else if (req.query.timeframe === 'Last 30 Days' || req.query.timeframe === '30d') {
+        match.createdAt = { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) };
+      }
+    }
+
+    // Role scoping for Department accounts
+    if (role === 'department') {
+      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      if (assigned.length > 0) {
+        match.$or = [
+          { issueCategory: { $in: assigned } },
+          { category: { $in: assigned } },
+          { assignedDepartment: { $in: assigned } }
+        ];
+      }
+    }
+
+    // Constraint 1: Fetch real account counts directly from User collection
+    const [deptCountLower, deptCountUpper, userCountLower, userCountUpper] = await Promise.all([
+      User.countDocuments({ role: 'department' }),
       User.countDocuments({ role: 'Department' }),
-      Ticket.find().select('category issueCategory assignedDepartment status campus createdAt').sort({ createdAt: -1 })
+      User.countDocuments({ role: 'user' }),
+      User.countDocuments({ role: 'User' })
+    ]);
+    const departmentAccounts = deptCountLower + deptCountUpper;
+    const userAccounts = userCountLower + userCountUpper;
+
+    // Constraint 2: Mongoose aggregate pipeline strictly grouping by category and excluding archived
+    const results = await Report.aggregate([
+      { $match: match },
+      {
+        $facet: {
+          statusCounts: [
+            {
+              $group: {
+                _id: '$status',
+                count: { $sum: 1 }
+              }
+            }
+          ],
+          categoriesBreakdown: [
+            {
+              $group: {
+                _id: { $ifNull: ['$category', '$issueCategory'] },
+                count: { $sum: 1 }
+              }
+            },
+            { $sort: { count: -1 } }
+          ],
+          accountDirectory: [
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'submittedBy',
+                foreignField: '_id',
+                as: 'submitter'
+              }
+            },
+            {
+              $project: {
+                reporterRole: {
+                  $cond: {
+                    if: { $gt: [{ $size: '$submitter' }, 0] },
+                    then: { $arrayElemAt: ['$submitter.role', 0] },
+                    else: 'Guest'
+                  }
+                }
+              }
+            },
+            {
+              $group: {
+                _id: '$reporterRole',
+                count: { $sum: 1 }
+              }
+            }
+          ],
+          totalCount: [
+            { $count: 'total' }
+          ]
+        }
+      }
     ]);
 
-    // Calculate category breakdown dynamically
-    const categoryCounts = {};
-    allTickets.forEach(t => {
-      const cat = t.assignedDepartment || t.issueCategory || t.category || 'Other';
-      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    const facet = results[0] || {};
+    const total = facet.totalCount && facet.totalCount[0] ? facet.totalCount[0].total : 0;
+
+    let pending = 0;
+    let inProgress = 0;
+    let resolved = 0;
+
+    (facet.statusCounts || []).forEach((item) => {
+      const s = (item._id || '').toLowerCase();
+      if (s === 'pending') pending = item.count;
+      else if (s === 'in progress' || s === 'inprogress') inProgress = item.count;
+      else if (s === 'resolved') resolved = item.count;
     });
 
+    const categories = (facet.categoriesBreakdown || [])
+      .filter((item) => item._id)
+      .map((item) => ({
+        name: item._id,
+        count: item.count
+      }));
+
+    const categoryCounts = {};
+    categories.forEach((item) => {
+      categoryCounts[item.name] = item.count;
+    });
+
+    let guestCount = 0;
+    (facet.accountDirectory || []).forEach((item) => {
+      const r = (item._id || '').toLowerCase();
+      if (r !== 'user' && r !== 'department' && r !== 'department staff' && r !== 'superadmin') {
+        guestCount += item.count;
+      }
+    });
+
+    const result = {
+      total,
+      totalTickets: total,
+      pending,
+      pendingCount: pending,
+      inProgress,
+      inProgressCount: inProgress,
+      resolved,
+      resolvedCount: resolved,
+      userAccounts,
+      departmentAccounts,
+      guestAccounts: guestCount,
+      categories,
+      categoryCounts,
+      accountDirectory: {
+        user: userAccounts,
+        userAccounts,
+        department: departmentAccounts,
+        departmentAccounts,
+        guest: guestCount,
+        guestAccounts: guestCount
+      }
+    };
+
+    console.log('Analytics DB Result:', result);
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ==========================================
+// ARCHIVE / BIN CONTROLLERS (Constraint 2)
+// Accessible strictly to 'superadmin' and 'department'
+// ==========================================
+
+// @desc    Soft-delete / Archive a report (move to bin)
+// @route   PUT /api/reports/:id/archive or PUT /api/tickets/:id/archive
+// @access  Private ('superadmin' & 'department' only)
+exports.archiveReport = async (req, res) => {
+  try {
+    const role = (req.user?.role || '').toLowerCase();
+    if (!['superadmin', 'department'].includes(req.user?.role) && !['superadmin', 'department'].includes(role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    // Role-based department scoping
+    if (role === 'department') {
+      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
+      if (userCats.length > 0 && !userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+        return res.status(403).json({ error: 'Forbidden: Cannot archive reports outside your assigned department' });
+      }
+    }
+
+    ticket.isArchived = true;
+    ticket.archivedAt = new Date();
+    if (ticket.auditTrail) {
+      ticket.auditTrail.push({
+        action: 'Archived',
+        details: 'Moved to Bin (30-day auto-deletion lifecycle)',
+        performedBy: req.user._id,
+        timestamp: new Date()
+      });
+    }
+
+    await ticket.save();
+
     res.json({
-      totalTickets,
-      pendingCount,
-      inProgressCount,
-      resolvedCount,
-      arleguiCount,
-      casalCount,
-      totalUsers,
-      totalDeptStaff,
-      categoryCounts
+      message: 'Report moved to bin successfully',
+      ticket
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
+// @desc    Restore a report from bin
+// @route   PUT /api/reports/:id/restore or PUT /api/tickets/:id/restore
+// @access  Private ('superadmin' & 'department' only)
+exports.restoreReport = async (req, res) => {
+  try {
+    const role = (req.user?.role || '').toLowerCase();
+    if (!['superadmin', 'department'].includes(req.user?.role) && !['superadmin', 'department'].includes(role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    if (role === 'department') {
+      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
+      if (userCats.length > 0 && !userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+        return res.status(403).json({ error: 'Forbidden: Cannot restore reports outside your assigned department' });
+      }
+    }
+
+    ticket.isArchived = false;
+    ticket.archivedAt = null;
+    if (ticket.auditTrail) {
+      ticket.auditTrail.push({
+        action: 'Restored',
+        details: 'Restored from Bin',
+        performedBy: req.user._id,
+        timestamp: new Date()
+      });
+    }
+
+    await ticket.save();
+
+    res.json({
+      message: 'Report restored successfully',
+      ticket
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Get all archived reports in the bin
+// @route   GET /api/reports/archived or GET /api/tickets/archived
+// @access  Private ('superadmin' & 'department' only)
+exports.getArchivedReports = async (req, res) => {
+  try {
+    const role = (req.user?.role || '').toLowerCase();
+    if (!['superadmin', 'department'].includes(req.user?.role) && !['superadmin', 'department'].includes(role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+
+    const query = {
+      isArchived: true
+    };
+
+    // Scoping for department role
+    if (role === 'department') {
+      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      if (assigned.length > 0) {
+        query.issueCategory = { $in: assigned };
+      }
+    }
+
+    if (req.query.search && req.query.search.trim()) {
+      const regex = new RegExp(req.query.search.trim(), 'i');
+      query.$or = [
+        { ticketId: regex },
+        { 'locationInfo.room': regex },
+        { 'locationInfo.building': regex },
+        { 'locationInfo.landmark': regex },
+        { campus: regex },
+        { issueCategory: regex },
+        { assignedDepartment: regex },
+        { description: regex },
+      ];
+    }
+
+    const reports = await Ticket.find(query).sort({ archivedAt: -1, updatedAt: -1 });
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Permanently delete a report from bin
+// @route   DELETE /api/reports/:id or DELETE /api/tickets/:id
+// @access  Private ('superadmin' & 'department' only)
+exports.deleteReportForever = async (req, res) => {
+  try {
+    const role = (req.user?.role || '').toLowerCase();
+    if (!['superadmin', 'department'].includes(req.user?.role) && !['superadmin', 'department'].includes(role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    if (role === 'department') {
+      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
+      if (userCats.length > 0 && !userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+        return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+      }
+    }
+
+    await Ticket.findByIdAndDelete(req.params.id);
+
+    res.json({
+      message: 'Report permanently deleted',
+      deletedId: req.params.id
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Aliases for compatibility
+exports.getReports = exports.getTickets;
+exports.archiveTicket = exports.archiveReport;
+exports.restoreTicket = exports.restoreReport;
+exports.getArchivedTickets = exports.getArchivedReports;
+exports.deleteReport = exports.deleteReportForever;
+exports.deleteTicketForever = exports.deleteReportForever;
 
 
 

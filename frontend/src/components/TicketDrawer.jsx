@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { updateTicket } from '../api/tickets';
+import { updateTicket, archiveReport } from '../api/tickets';
 import { getDepartments } from '../api/adminData';
 import { getMe } from '../api/auth';
 import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
@@ -31,6 +31,7 @@ export default function TicketDrawer({
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [adminNote, setAdminNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState('');
   const [zoomedImage, setZoomedImage] = useState(null);
 
@@ -57,7 +58,12 @@ export default function TicketDrawer({
       .catch(() => {});
   }, [propUser]);
 
-  const user = propUser || internalUser || { role: '' };
+  const rawUser = propUser || internalUser || {};
+  const userRole = (rawUser.role || '').toLowerCase();
+  const user = {
+    ...rawUser,
+    role: userRole
+  };
 
   // Fetch actual departments (Constraint 3)
   useEffect(() => {
@@ -89,7 +95,29 @@ export default function TicketDrawer({
 
   if (!isOpen || !ticket) return null;
 
-  const noteLabel = user.role === 'Superadmin' ? 'ADMIN NOTE' : 'STAFF NOTE';
+  const noteLabel = (user.role === 'superadmin' || rawUser.role === 'Superadmin') ? 'ADMIN NOTE' : 'STAFF NOTE';
+
+  // Constraint 3: Call archive endpoint and close the detailed view without immediate execution
+  const handleArchive = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!ticket) return;
+    const ticketId = ticket._id || ticket.id;
+    try {
+      setArchiving(true);
+      await archiveReport(ticketId);
+      if (onUpdateSuccess) {
+        onUpdateSuccess({ ...ticket, isArchived: true });
+      }
+      if (onClose) {
+        onClose();
+      }
+    } catch (err) {
+      console.error('Failed to move to bin:', err);
+      setError(err.response?.data?.error || 'Failed to move ticket to bin');
+    } finally {
+      setArchiving(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -319,8 +347,11 @@ export default function TicketDrawer({
           </div>
         </div>
 
-        {/* Footer with Action Debounced Button */}
-        <div className="p-6 border-t border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex justify-end">
+        {/* Footer with Action Debounced Button & Move to Bin Button */}
+        <div className="p-6 border-t border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
+          <div>
+            {['superadmin', 'department'].includes(user?.role) && ( <button onClick={handleArchive} type="button" disabled={archiving || saving} className="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50">Move to Bin</button> )}
+          </div>
           <button
             type="submit"
             form="drawer-form"

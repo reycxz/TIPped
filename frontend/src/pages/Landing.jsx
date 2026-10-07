@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import CreateReport from './CreateReport';
+import GuestReportModal from '../components/GuestReportModal';
 import CameraFAB from '../components/CameraFAB';
 import Login from './Login';
 import Register from './Register';
@@ -165,30 +166,21 @@ export default function Landing({ onLoginSuccess }) {
 
         {/* Create Report Modal for Guest Flow (Triggered by either CTA Button or FAB) */}
         {showReportModal && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md p-4 flex items-center justify-center">
-            <div className="w-full max-w-2xl relative my-8">
-              <CreateReport
-                isGuest={true}
-                initialPhoto={capturedFile}
-                initialPhotos={capturedPhotos}
-                onCancel={() => {
-                  setShowReportModal(false);
-                  setCapturedPhotos([]);
-                  setCapturedFile(null);
-                }}
-                onClose={() => {
-                  setShowReportModal(false);
-                  setCapturedPhotos([]);
-                  setCapturedFile(null);
-                }}
-                onSuccess={() => {
-                  setShowReportModal(false);
-                  setCapturedPhotos([]);
-                  setCapturedFile(null);
-                }}
-              />
-            </div>
-          </div>
+          <GuestReportModal
+            isOpen={showReportModal}
+            initialPhoto={capturedFile}
+            initialPhotos={capturedPhotos}
+            onClose={() => {
+              setShowReportModal(false);
+              setCapturedPhotos([]);
+              setCapturedFile(null);
+            }}
+            onSuccess={() => {
+              setShowReportModal(false);
+              setCapturedPhotos([]);
+              setCapturedFile(null);
+            }}
+          />
         )}
 
         {/* Constraint 2: Mobile-First Camera FAB with onClick executing fileInputRef.current.click() */}

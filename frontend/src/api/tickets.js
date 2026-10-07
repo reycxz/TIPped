@@ -51,8 +51,13 @@ export const getAdminTickets = async (params = {}) => {
   return response.data;
 };
 
-export const getAnalytics = async () => {
-  const response = await api.get('/analytics');
+export const getAnalytics = async (params = {}) => {
+  const token = localStorage.getItem('token');
+  const config = {
+    params,
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  };
+  const response = await axios.get('/api/reports/analytics', config);
   return response.data;
 };
 
@@ -60,5 +65,44 @@ export const updateTicket = async (id, updateData) => {
   const response = await api.put(`/${id}`, updateData);
   return response.data;
 };
+
+// Archive / Bin API Endpoints
+export const getArchivedReports = async () => {
+  const token = localStorage.getItem('token');
+  const response = await axios.get('/api/reports/archived', {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  return response.data;
+};
+
+export const archiveReport = async (id) => {
+  const token = localStorage.getItem('token');
+  const response = await axios.put(`/api/reports/${id}/archive`, {}, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  return response.data;
+};
+
+export const restoreReport = async (id) => {
+  const token = localStorage.getItem('token');
+  const response = await axios.put(`/api/reports/${id}/restore`, {}, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  return response.data;
+};
+
+export const deleteReportForever = async (id) => {
+  const token = localStorage.getItem('token');
+  const response = await axios.delete(`/api/reports/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  return response.data;
+};
+
+// Aliases
+export const getArchivedTickets = getArchivedReports;
+export const archiveTicket = archiveReport;
+export const restoreTicket = restoreReport;
+export const deleteTicketForever = deleteReportForever;
 
 export default api;
