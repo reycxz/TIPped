@@ -182,7 +182,7 @@ export default function Dashboard({ user }) {
                       {ticket.ticketId}
                     </div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {ticket.category} • {ticket.campus} - {ticket.locationInfo?.room}
+                      {ticket.category} - {ticket.campus} (Room {ticket.locationInfo?.room})
                     </div>
                   </div>
                 </div>

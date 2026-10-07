@@ -36,6 +36,12 @@ export default function Register({ onLoginSuccess, isEmbedded = false, onToggleL
     setError('');
     setEmailError('');
 
+    const normalizedEmail = (formData.email || '').toLowerCase().trim();
+    if (!normalizedEmail.endsWith('@tip.edu.ph')) {
+      setEmailError('Please use your institutional @tip.edu.ph email address.');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Password mismatch');
       return;

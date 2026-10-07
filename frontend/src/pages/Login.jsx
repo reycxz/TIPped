@@ -78,7 +78,14 @@ export default function Login({ onLoginSuccess, isEmbedded = false, onToggleRegi
 
         const gUser = userInfoRes.data;
 
+        const email = (gUser.email || '').toLowerCase().trim();
+        if (!email.endsWith('@tip.edu.ph')) {
+          setError('Access restricted: Only institutional @tip.edu.ph Google accounts are allowed.');
+          return;
+        }
+
         const data = await googleAuthApi({
+          token: tokenResponse.access_token,
           email: gUser.email,
           firstName: gUser.given_name || gUser.name?.split(' ')[0] || 'Google',
           lastName: gUser.family_name || gUser.name?.split(' ').slice(1).join(' ') || 'User',

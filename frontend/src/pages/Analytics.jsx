@@ -432,8 +432,9 @@ export default function Analytics({ user }) {
                     <div className="text-xs font-bold text-slate-900 dark:text-white">
                       {dept.firstName} {dept.lastName}
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 flex flex-wrap items-center gap-1">
-                      <span>{dept.email} •</span>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
+                      <span>{dept.email}</span>
+                      <span className="text-slate-300 dark:text-slate-600">|</span>
                       <span>Categories:</span>
                       {(Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
                         ? dept.assignedCategories

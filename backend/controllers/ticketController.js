@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Ticket = require('../models/Ticket');
 const Report = require('../models/Report');
 const Department = require('../models/Department');
@@ -6,6 +7,12 @@ const User = require('../models/User');
 const { generateTicketId } = require('../utils/ticketIdGenerator');
 const { sendStatusUpdateEmail, sendGuestConfirmationEmail } = require('../utils/emailService');
 const { streamUpload, uploadDirect } = require('../config/cloudinary');
+
+// Helper to escape special regular expression characters preventing ReDoS and query crashes
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 
 const DEFAULT_CATEGORIES = [
   'ITSO',
@@ -63,14 +70,15 @@ const extractImageUrls = async (req) => {
 // @access  Private
 exports.getMetrics = async (req, res) => {
   try {
+    const role = (req.user?.role || '').toLowerCase();
     const query = {
       isArchived: { $ne: true }
     };
     
-    // Role-based metric scoping
-    if (req.user && req.user.role === 'User') {
+    // Role-based metric scoping (case-insensitive role matching)
+    if (role === 'user') {
       query.$or = [{ submittedBy: req.user._id }, { reportedBy: req.user._id }];
-    } else if (req.user && (req.user.role === 'Department' || req.user.role === 'Department Staff')) {
+    } else if (role === 'department' || role === 'department staff') {
       const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
@@ -99,40 +107,44 @@ exports.getMetrics = async (req, res) => {
 // @access  Private
 exports.getMyTickets = async (req, res) => {
   try {
+    const userId = req.user._id;
+    // Strict Object-Level Authorization: Scoped strictly to the requesting user
     const query = {
-      $or: [{ submittedBy: req.user._id }, { reportedBy: req.user._id }],
-      isArchived: { $ne: true }
+      $and: [
+        { $or: [{ submittedBy: userId }, { reportedBy: userId }] },
+        { isArchived: { $ne: true } }
+      ]
     };
 
     if (req.query.status && req.query.status !== 'All') {
-      query.status = req.query.status;
+      query.$and.push({ status: req.query.status });
     }
 
     if (req.query.category && req.query.category !== 'All') {
-      query.$or = [
-        { assignedDepartment: req.query.category },
-        { issueCategory: req.query.category },
-        { category: req.query.category }
-      ];
+      query.$and.push({
+        $or: [
+          { assignedDepartment: req.query.category },
+          { issueCategory: req.query.category },
+          { category: req.query.category }
+        ]
+      });
     }
 
-    if (req.query.search && req.query.search.trim()) {
-      const regex = new RegExp(req.query.search.trim(), 'i');
-      query.$and = [
-        {
-          $or: [
-            { ticketId: regex },
-            { 'locationInfo.room': regex },
-            { 'locationInfo.building': regex },
-            { 'locationInfo.landmark': regex },
-            { campus: regex },
-            { issueCategory: regex },
-            { assignedDepartment: regex },
-            { category: regex },
-            { description: regex },
-          ]
-        }
-      ];
+    if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim()) {
+      const regex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+      query.$and.push({
+        $or: [
+          { ticketId: regex },
+          { 'locationInfo.room': regex },
+          { 'locationInfo.building': regex },
+          { 'locationInfo.landmark': regex },
+          { campus: regex },
+          { issueCategory: regex },
+          { assignedDepartment: regex },
+          { category: regex },
+          { description: regex },
+        ]
+      });
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
@@ -262,6 +274,26 @@ exports.createGuestTicket = async (req, res) => {
       return res.status(400).json({ error: 'Floor mismatch' });
     }
 
+    // Input sanitization and bounds checking
+    if (guestEmail && guestEmail.trim()) {
+      const emailRegex = /^\S+@\S+\.\S+$/;
+      if (!emailRegex.test(guestEmail.trim())) {
+        return res.status(400).json({ error: 'Invalid guest email address format' });
+      }
+    }
+
+    if (description && description.length > 5000) {
+      return res.status(400).json({ error: 'Description exceeds maximum allowed length of 5000 characters' });
+    }
+
+    if (landmark && landmark.length > 200) {
+      return res.status(400).json({ error: 'Landmark exceeds maximum allowed length of 200 characters' });
+    }
+
+    if (room && room.length > 50) {
+      return res.status(400).json({ error: 'Room identifier exceeds maximum allowed length of 50 characters' });
+    }
+
     // Dynamic department and prefix resolution from database
     let assignedDepartment = 'General';
     let prefix = 'GEN';
@@ -353,9 +385,8 @@ exports.getTickets = async (req, res) => {
       isArchived: { $ne: true }
     };
 
-    // Constraint 3: When a user with the 'Department' role fetches their tickets, use the $in operator to fetch all matching tickets
-    // Constraint 4: Status agnostic - returns all tickets matching the categories (Pending, In Progress, Resolved)
-    if (req.user && (req.user.role === 'Department' || req.user.role === 'Department Staff')) {
+    const role = (req.user?.role || '').toLowerCase();
+    if (role === 'department' || role === 'department staff') {
       const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
@@ -371,25 +402,35 @@ exports.getTickets = async (req, res) => {
       query.status = req.query.status;
     }
 
+    const andConditions = [];
+
     if (req.query.category && req.query.category !== 'All') {
-      query.$or = [
-        { assignedDepartment: req.query.category },
-        { issueCategory: req.query.category }
-      ];
+      andConditions.push({
+        $or: [
+          { assignedDepartment: req.query.category },
+          { issueCategory: req.query.category }
+        ]
+      });
     }
 
-    if (req.query.search && req.query.search.trim()) {
-      const regex = new RegExp(req.query.search.trim(), 'i');
-      query.$or = [
-        { ticketId: regex },
-        { 'locationInfo.room': regex },
-        { 'locationInfo.building': regex },
-        { 'locationInfo.landmark': regex },
-        { campus: regex },
-        { issueCategory: regex },
-        { assignedDepartment: regex },
-        { description: regex },
-      ];
+    if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim()) {
+      const regex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+      andConditions.push({
+        $or: [
+          { ticketId: regex },
+          { 'locationInfo.room': regex },
+          { 'locationInfo.building': regex },
+          { 'locationInfo.landmark': regex },
+          { campus: regex },
+          { issueCategory: regex },
+          { assignedDepartment: regex },
+          { description: regex },
+        ]
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
@@ -408,12 +449,17 @@ exports.updateTicket = async (req, res) => {
   try {
     const { status, priority, category, adminNote } = req.body;
 
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid ticket ID format' });
+    }
+
     const ticket = await Ticket.findById(req.params.id).populate('submittedBy').populate('reportedBy');
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    if (req.user.role === 'Department') {
+    const role = (req.user?.role || '').toLowerCase();
+    if (role === 'department') {
       const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
@@ -427,13 +473,13 @@ exports.updateTicket = async (req, res) => {
       return res.status(400).json({ error: 'Admin note is required to resolve ticket' });
     }
 
-    // Constraint 1: Dynamic Actor Identification
+    // Dynamic Actor Identification (case-normalized)
     let actorPrefix = 'User';
-    if (req.user?.role === 'Superadmin') {
+    if (role === 'superadmin') {
       actorPrefix = 'Superadmin';
-    } else if (req.user?.role === 'Department') {
-      actorPrefix = req.user.firstName;
-    } else if (req.user?.role === 'User') {
+    } else if (role === 'department') {
+      actorPrefix = req.user.firstName || 'Department';
+    } else if (role === 'user') {
       actorPrefix = 'User';
     }
 
@@ -485,11 +531,11 @@ exports.updateTicket = async (req, res) => {
 
     await ticket.save();
 
-    // Formal text-only notification sent ONLY if status changed or admin note submitted
+    // Formal text-only notification dispatched asynchronously without blocking HTTP response
     const recipientEmail = ticket.submittedBy?.email || ticket.reportedBy?.email || ticket.guestEmail;
     if ((statusChanged || noteAdded) && recipientEmail) {
       const formattedTimestamp = new Date(ticket.createdAt).toLocaleString();
-      await sendStatusUpdateEmail({
+      sendStatusUpdateEmail({
         to: recipientEmail,
         ticketId: ticket.ticketId,
         timestamp: formattedTimestamp,
@@ -498,6 +544,8 @@ exports.updateTicket = async (req, res) => {
         category: ticket.issueCategory || ticket.assignedDepartment || ticket.category || 'General',
         newStatus: ticket.status,
         adminNote: adminNote ? adminNote.trim() : 'None',
+      }).catch((mailErr) => {
+        console.error('[Nodemailer Error] Status update email failed:', mailErr.message);
       });
     }
 
@@ -716,6 +764,10 @@ exports.archiveReport = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid report ID format' });
+    }
+
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) {
       return res.status(404).json({ error: 'Report not found' });
@@ -734,14 +786,15 @@ exports.archiveReport = async (req, res) => {
 
     ticket.isArchived = true;
     ticket.archivedAt = new Date();
-    if (ticket.auditTrail) {
-      ticket.auditTrail.push({
-        action: 'Archived',
-        details: 'Moved to Bin (30-day auto-deletion lifecycle)',
-        performedBy: req.user._id,
-        timestamp: new Date()
-      });
+    if (!Array.isArray(ticket.auditTrail)) {
+      ticket.auditTrail = [];
     }
+    ticket.auditTrail.push({
+      action: 'Archived',
+      details: 'Moved to Bin (30-day auto-deletion lifecycle)',
+      performedBy: req.user._id,
+      timestamp: new Date()
+    });
 
     await ticket.save();
 
@@ -764,6 +817,10 @@ exports.restoreReport = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid report ID format' });
+    }
+
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) {
       return res.status(404).json({ error: 'Report not found' });
@@ -781,14 +838,15 @@ exports.restoreReport = async (req, res) => {
 
     ticket.isArchived = false;
     ticket.archivedAt = null;
-    if (ticket.auditTrail) {
-      ticket.auditTrail.push({
-        action: 'Restored',
-        details: 'Restored from Bin',
-        performedBy: req.user._id,
-        timestamp: new Date()
-      });
+    if (!Array.isArray(ticket.auditTrail)) {
+      ticket.auditTrail = [];
     }
+    ticket.auditTrail.push({
+      action: 'Restored',
+      details: 'Restored from Bin',
+      performedBy: req.user._id,
+      timestamp: new Date()
+    });
 
     await ticket.save();
 
@@ -825,8 +883,8 @@ exports.getArchivedReports = async (req, res) => {
       }
     }
 
-    if (req.query.search && req.query.search.trim()) {
-      const regex = new RegExp(req.query.search.trim(), 'i');
+    if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim()) {
+      const regex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
       query.$or = [
         { ticketId: regex },
         { 'locationInfo.room': regex },
@@ -854,6 +912,10 @@ exports.deleteReportForever = async (req, res) => {
     const role = (req.user?.role || '').toLowerCase();
     if (!['superadmin', 'department'].includes(req.user?.role) && !['superadmin', 'department'].includes(role)) {
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid report ID format' });
     }
 
     const ticket = await Ticket.findById(req.params.id);

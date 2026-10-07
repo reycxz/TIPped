@@ -260,7 +260,7 @@ export default function MyReports() {
                   <div className="flex items-center text-slate-500 dark:text-slate-400">
                     <MapPin className="w-3.5 h-3.5 mr-1.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
                     <span className="truncate">
-                      {ticket.campus} • {ticket.locationInfo?.building || 'Main'}
+                      {ticket.campus} - {ticket.locationInfo?.building || 'Main'}
                       {ticket.locationInfo?.room ? ` (Rm ${ticket.locationInfo.room})` : ''}
                     </span>
                   </div>

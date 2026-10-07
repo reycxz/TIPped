@@ -29,7 +29,13 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: false,
-      minlength: [6, 'Password must be at least 6 characters']
+      validate: {
+        validator: function (v) {
+          if (!v) return true;
+          return v.length >= 6;
+        },
+        message: 'Password must be at least 6 characters'
+      }
     },
     authProvider: {
       type: String,
@@ -39,7 +45,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['User', 'user', 'Department', 'Superadmin'],
+        values: ['User', 'user', 'Department', 'department', 'Superadmin', 'superadmin'],
         message: '{VALUE} is not a supported role'
       },
       default: 'user'

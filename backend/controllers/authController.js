@@ -18,13 +18,20 @@ const createEmailTransporter = () => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const { firstName, lastName, email, program, password, role, departmentCategory } = req.body;
+    const { firstName, lastName, email, program, password, departmentCategory } = req.body;
 
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ error: 'Please provide all required fields' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+
+    // Institutional Domain Boundary Check (@tip.edu.ph)
+    if (!normalizedEmail.endsWith('@tip.edu.ph')) {
+      return res.status(403).json({
+        error: 'Forbidden: Access restricted strictly to institutional @tip.edu.ph accounts'
+      });
+    }
 
     // Database check before generating or sending the OTP
     const existingUser = (await User.findOne({ email: req.body.email })) || (await User.findOne({ email: normalizedEmail }));
@@ -39,13 +46,14 @@ exports.register = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
+    // Explicitly enforce role: 'user' to prevent privilege escalation via mass assignment
     const user = new User({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: normalizedEmail,
       program: program ? program.trim() : 'Not Specified',
       password,
-      role: role || 'User',
+      role: 'user',
       departmentCategory: departmentCategory ? departmentCategory.trim() : null,
       otp,
       otpExpires,
@@ -54,18 +62,20 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Constraint 3: Send verification email using Nodemailer with strict text template
+    // Send verification email asynchronously without blocking HTTP response
     try {
       const transporter = createEmailTransporter();
-      await transporter.sendMail({
+      transporter.sendMail({
         from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
         to: normalizedEmail,
         subject: 'TIPPED Registration - Verification Code',
         text: `Your 6-digit verification code is: ${otp}\n\nPlease enter this code to complete your registration. This code will expire in 10 minutes.`,
+      }).catch((emailErr) => {
+        console.error('[Nodemailer Error]: Failed to send registration OTP email:', emailErr.message);
       });
-      console.log(`[Nodemailer] Registration OTP sent to ${normalizedEmail}`);
+      console.log(`[Nodemailer] Registration OTP dispatched to ${normalizedEmail}`);
     } catch (emailErr) {
-      console.error('[Nodemailer Error]: Failed to send registration OTP email:', emailErr.message);
+      console.error('[Nodemailer Error]: Failed to dispatch registration OTP email:', emailErr.message);
     }
 
     // Constraint 2: Do NOT return raw OTP in JSON response
@@ -168,14 +178,48 @@ exports.login = async (req, res) => {
 // @access  Public
 exports.googleAuth = async (req, res) => {
   try {
-    const { email, firstName, lastName, name, avatar } = req.body;
+    const { token, credential, email, firstName, lastName, name, avatar } = req.body;
+    const authHeader = req.headers.authorization;
+    const googleToken = token || credential || (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
 
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required for Google Sign-In' });
+    if (!googleToken) {
+      return res.status(401).json({ error: 'Google OAuth token is required for verification' });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-    let user = await User.findOne({ email: normalizedEmail });
+    // Verify token against official Google endpoints
+    let googleUser = null;
+    try {
+      const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${googleToken}` }
+      });
+      if (userinfoRes.ok) {
+        googleUser = await userinfoRes.json();
+      }
+    } catch (e) {}
+
+    if (!googleUser || !googleUser.email) {
+      try {
+        const tokeninfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(googleToken)}`);
+        if (tokeninfoRes.ok) {
+          googleUser = await tokeninfoRes.json();
+        }
+      } catch (e) {}
+    }
+
+    if (!googleUser || !googleUser.email) {
+      return res.status(401).json({ error: 'Invalid or expired Google OAuth token' });
+    }
+
+    const verifiedEmail = googleUser.email.toLowerCase().trim();
+
+    // Enforce Institutional Domain Restriction (@tip.edu.ph)
+    if (!verifiedEmail.endsWith('@tip.edu.ph')) {
+      return res.status(403).json({
+        error: 'Forbidden: Access restricted strictly to institutional @tip.edu.ph Google accounts'
+      });
+    }
+
+    let user = await User.findOne({ email: verifiedEmail });
 
     if (user) {
       const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -188,38 +232,37 @@ exports.googleAuth = async (req, res) => {
       });
     }
 
-    let derivedFirstName = firstName ? firstName.trim() : '';
-    let derivedLastName = lastName ? lastName.trim() : '';
-    if (!derivedFirstName && name) {
-      const parts = name.trim().split(' ');
+    let derivedFirstName = googleUser.given_name || firstName ? (googleUser.given_name || firstName).trim() : '';
+    let derivedLastName = googleUser.family_name || lastName ? (googleUser.family_name || lastName).trim() : '';
+    if (!derivedFirstName && (googleUser.name || name)) {
+      const parts = (googleUser.name || name).trim().split(' ');
       derivedFirstName = parts[0] || 'Google';
       derivedLastName = parts.slice(1).join(' ') || 'User';
     }
     if (!derivedFirstName) derivedFirstName = 'Google';
     if (!derivedLastName) derivedLastName = 'User';
 
-    // Constraint 4: Explicitly sets authProvider: 'google' and does NOT attempt to pass a password field
-    // Constraint 2: Explicitly set role: 'user'
+    // Safe account provisioning: role defaults strictly to 'user', authProvider to 'google', omit password
     user = new User({
       firstName: derivedFirstName,
       lastName: derivedLastName,
-      email: normalizedEmail,
+      email: verifiedEmail,
       program: 'Not Specified',
       role: 'user',
       isVerified: true,
       authProvider: 'google',
-      avatar: avatar || 'avatar-1'
+      avatar: googleUser.picture || avatar || 'avatar-1'
     });
 
     await user.save();
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const authToken = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     const userObj = user.toObject();
     delete userObj.password;
 
     return res.status(201).json({
       message: 'Google login successful',
-      token,
+      token: authToken,
       user: userObj
     });
   } catch (error) {
@@ -260,7 +303,22 @@ exports.forgotPassword = async (req, res) => {
     user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
     await user.save();
 
-    res.json({ message: 'OTP sent', otp });
+    try {
+      const transporter = createEmailTransporter();
+      transporter.sendMail({
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+        to: normalizedEmail,
+        subject: 'TIPPED - Password Reset Verification Code',
+        text: `Your 6-digit password reset code is: ${otp}\n\nThis code will expire in 10 minutes. If you did not request this, please ignore this email.`,
+      }).catch((emailErr) => {
+        console.error('[Nodemailer Error]: Failed to send password reset OTP:', emailErr.message);
+      });
+    } catch (emailErr) {
+      console.error('[Nodemailer Error]: Failed to dispatch password reset OTP:', emailErr.message);
+    }
+
+    // Never expose raw OTP in HTTP response
+    res.json({ message: 'OTP sent to your email' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

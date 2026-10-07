@@ -261,7 +261,7 @@ export default function ArchivedReports({ user }) {
                     <div className="flex items-center gap-1.5 font-medium">
                       <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>
-                        {report.campus} • {report.locationInfo?.building} - Room {report.locationInfo?.room}
+                        {report.campus} - {report.locationInfo?.building} (Room {report.locationInfo?.room})
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
