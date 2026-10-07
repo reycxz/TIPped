@@ -8,7 +8,7 @@ export default function ProtectedLayout({ user, onLogout, allowedRoles }) {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={user.role === 'User' ? '/dashboard' : '/admin'} replace />;
+    return <Navigate to={user.role === 'User' || user.role === 'user' ? '/dashboard' : '/admin'} replace />;
   }
 
   return (

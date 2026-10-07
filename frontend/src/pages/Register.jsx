@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser, verifyRegistrationOtp } from '../api/auth';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, X } from 'lucide-react';
 
 export default function Register({ onLoginSuccess, isEmbedded = false, onToggleLogin }) {
   const [formData, setFormData] = useState({
@@ -12,6 +12,8 @@ export default function Register({ onLoginSuccess, isEmbedded = false, onToggleL
     password: '',
     confirmPassword: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,11 +60,14 @@ export default function Register({ onLoginSuccess, isEmbedded = false, onToggleL
       setShowOtpModal(true);
     } catch (err) {
       const serverMessage = err.response?.data?.message || err.response?.data?.error;
-      // Constraint 2: Catch specific 400 error and set error messages
-      if (err.response?.status === 400) {
+      const isEmailConflict =
+        err.response?.status === 400 ||
+        (typeof serverMessage === 'string' && serverMessage.toLowerCase().includes('email'));
+
+      if (isEmailConflict) {
         const errorMsg = serverMessage || 'Email already exists. Please log in.';
         setEmailError(errorMsg);
-        setError(errorMsg);
+        setError('');
       } else {
         setError(serverMessage || 'Registration failed');
       }
@@ -121,6 +126,14 @@ export default function Register({ onLoginSuccess, isEmbedded = false, onToggleL
       <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-6 text-center">
         Sign Up
       </h1>
+
+      {/* General / Non-field-specific Error Banner */}
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 flex items-center space-x-2 text-xs" role="alert">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       <form onSubmit={handleRegister} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -181,54 +194,100 @@ export default function Register({ onLoginSuccess, isEmbedded = false, onToggleL
           <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             Program
           </label>
-          <input
-            type="text"
+          <select
             name="program"
             value={formData.program}
             onChange={handleChange}
-            placeholder="Program"
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
-          />
+            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors cursor-pointer"
+          >
+            <option value="" disabled>
+              Select your program
+            </option>
+            <optgroup label="College of Engineering and Architecture">
+              <option value="BS Architecture">BS Architecture</option>
+              <option value="BS Chemical Engineering">BS Chemical Engineering</option>
+              <option value="BS Civil Engineering">BS Civil Engineering</option>
+              <option value="BS Computer Engineering">BS Computer Engineering</option>
+              <option value="BS Electrical Engineering">BS Electrical Engineering</option>
+              <option value="BS Electronics Engineering">BS Electronics Engineering</option>
+              <option value="BS Industrial Engineering">BS Industrial Engineering</option>
+              <option value="BS Mechanical Engineering">BS Mechanical Engineering</option>
+            </optgroup>
+            <optgroup label="College of Computer Studies">
+              <option value="BS Computer Science">BS Computer Science</option>
+              <option value="BS Information Systems">BS Information Systems</option>
+              <option value="BS Information Technology">BS Information Technology</option>
+            </optgroup>
+            <optgroup label="College of Business Education">
+              <option value="BS Accountancy">BS Accountancy</option>
+              <option value="BS Accounting Information Systems">BS Accounting Information Systems</option>
+              <option value="BS Business Administration">BS Business Administration</option>
+            </optgroup>
+            <optgroup label="College of Arts">
+              <option value="BA Political Science">BA Political Science</option>
+            </optgroup>
+          </select>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             Password
           </label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            placeholder="Password"
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
-          />
+          <div className="relative w-full">
+            <input
+              type={showPassword ? "text" : "password"}
+              required
+              minLength={6}
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Password"
+              className="w-full px-3 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            >
+              {showPassword ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             Confirm Password
           </label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            name="confirmPassword"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            placeholder="Confirm Password"
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
-          />
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 flex items-center space-x-2 text-xs" role="alert">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
+          <div className="relative w-full">
+            <input
+              type={showConfirmPassword ? "text" : "password"}
+              required
+              minLength={6}
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              placeholder="Confirm Password"
+              className="w-full px-3 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            >
+              {showConfirmPassword ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
           </div>
-        )}
+        </div>
 
         <button
           type="submit"

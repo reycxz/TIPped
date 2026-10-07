@@ -2,13 +2,17 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Check, X } from 'lucide-react';
 
-export default function CameraFAB({ onCapture, className = '' }) {
+export default function CameraFAB({ onCapture, onClick, className = '' }) {
   const fileInputRef = useRef(null);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const navigate = useNavigate();
 
-  const handleFabClick = () => {
+  const handleFabClick = (e) => {
+    if (onClick) {
+      onClick(e);
+      return;
+    }
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }

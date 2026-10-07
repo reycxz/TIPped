@@ -24,20 +24,25 @@ const userSchema = new mongoose.Schema(
     program: {
       type: String,
       trim: true,
-      default: ''
+      default: 'Not Specified'
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: false,
       minlength: [6, 'Password must be at least 6 characters']
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local'
     },
     role: {
       type: String,
       enum: {
-        values: ['User', 'Department', 'Superadmin'],
+        values: ['User', 'user', 'Department', 'Superadmin'],
         message: '{VALUE} is not a supported role'
       },
-      default: 'User'
+      default: 'user'
     },
     assignedCategories: {
       type: [String],
@@ -72,22 +77,29 @@ const userSchema = new mongoose.Schema(
 );
 
 // Pre-save hook to hash password and sync category fields
-userSchema.pre('save', async function () {
+userSchema.pre('save', async function (next) {
   if (Array.isArray(this.assignedCategories) && this.assignedCategories.length > 0 && !this.departmentCategory) {
     this.departmentCategory = this.assignedCategories[0];
   } else if (this.departmentCategory && (!this.assignedCategories || this.assignedCategories.length === 0)) {
     this.assignedCategories = [this.departmentCategory];
   }
 
-  if (!this.isModified('password')) {
-    return;
+  if (typeof next !== 'function') next = () => {};
+
+  if (!this.isModified('password') || !this.password) return next();
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    return next();
+  } catch (err) {
+    return next(err);
   }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // Compare entered password with hashed password in database
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 

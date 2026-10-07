@@ -3,7 +3,7 @@ const Department = require('../models/Department');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const { generateTicketId } = require('../utils/ticketIdGenerator');
-const { sendStatusUpdateEmail } = require('../utils/emailService');
+const { sendStatusUpdateEmail, sendGuestConfirmationEmail } = require('../utils/emailService');
 const { streamUpload, uploadDirect } = require('../config/cloudinary');
 
 const DEFAULT_CATEGORIES = [
@@ -318,6 +318,18 @@ exports.createGuestTicket = async (req, res) => {
     });
 
     await ticket.save();
+
+    // Constraint 3 & 5: Fire confirmation email non-blocking — does NOT delay the 201 response
+    if (guestEmail) {
+      sendGuestConfirmationEmail({
+        to: guestEmail.trim().toLowerCase(),
+        category: selectedCategory,
+        campus,
+        building,
+      }).catch((err) =>
+        console.error('[Nodemailer Error] Guest confirmation (unhandled):', err.message)
+      );
+    }
 
     res.status(201).json({
       message: 'Report submitted',

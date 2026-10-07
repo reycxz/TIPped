@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import CreateReport from './CreateReport';
 import CameraFAB from '../components/CameraFAB';
@@ -9,7 +9,11 @@ import { Camera, X } from 'lucide-react';
 
 export default function Landing({ onLoginSuccess }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+
   const [showReportModal, setShowReportModal] = useState(false);
+  const [capturedFile, setCapturedFile] = useState(null);
   const [capturedPhotos, setCapturedPhotos] = useState([]);
 
   // Flip-card animation state for embedded Login & Register
@@ -32,6 +36,44 @@ export default function Landing({ onLoginSuccess }) {
         }, 250);
       }, 50);
     }, 250);
+  };
+
+  // Constraint 3 & 4: Photo capture handler for native camera / gallery selection
+  const handlePhotoCapture = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const token = localStorage.getItem('token');
+
+    // Create preview object compatible with CreateReport
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const photoObj = {
+        name: file.name,
+        size: file.size,
+        dataUrl: reader.result,
+        file: file,
+      };
+
+      if (token) {
+        // Authenticated user: navigate directly to Create Report route
+        navigate('/report/new', {
+          state: {
+            initialPhoto: file,
+            preloadedPhotos: [photoObj],
+          },
+        });
+      } else {
+        // Guest user: hand off to Guest Report modal
+        setCapturedFile(file);
+        setCapturedPhotos([photoObj]);
+        setShowReportModal(true);
+      }
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input value to allow re-capturing same image if needed
+    e.target.value = '';
   };
 
   const handleCapture = (photos) => {
@@ -112,32 +154,48 @@ export default function Landing({ onLoginSuccess }) {
           </div>
         </div>
 
+        {/* Constraint 1: Hidden file input with accept="image/*" for native camera / gallery trigger */}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handlePhotoCapture}
+        />
+
         {/* Create Report Modal for Guest Flow (Triggered by either CTA Button or FAB) */}
         {showReportModal && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md p-4 flex items-center justify-center">
             <div className="w-full max-w-2xl relative my-8">
               <CreateReport
                 isGuest={true}
+                initialPhoto={capturedFile}
                 initialPhotos={capturedPhotos}
                 onCancel={() => {
                   setShowReportModal(false);
                   setCapturedPhotos([]);
+                  setCapturedFile(null);
                 }}
                 onClose={() => {
                   setShowReportModal(false);
                   setCapturedPhotos([]);
+                  setCapturedFile(null);
                 }}
                 onSuccess={() => {
                   setShowReportModal(false);
                   setCapturedPhotos([]);
+                  setCapturedFile(null);
                 }}
               />
             </div>
           </div>
         )}
 
-        {/* Constraint 3: Mobile-First Camera FAB strictly hidden on desktop screens (md:hidden) */}
-        <CameraFAB onCapture={handleCapture} className="md:hidden" />
+        {/* Constraint 2: Mobile-First Camera FAB with onClick executing fileInputRef.current.click() */}
+        <CameraFAB
+          onClick={() => fileInputRef.current.click()}
+          className="md:hidden"
+        />
       </main>
     </div>
   );

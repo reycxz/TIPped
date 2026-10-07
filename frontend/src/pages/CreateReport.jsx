@@ -4,6 +4,16 @@ import axios from 'axios';
 import { createTicket, createGuestTicket } from '../api/tickets';
 import { Upload, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 
+// Constraint 1: Arlegui room data dictionary
+const arleguiRooms = {
+  '1': ['A-101', 'A-102', 'A-103', 'A-104', 'A-105', 'A-106', 'A-107', 'A-108', 'A-109', 'A-110'],
+  '2': ['A-201', 'A-202', 'A-203', 'A-204', 'A-205', 'A-206', 'A-207', 'A-208', 'A-209', 'A-210', 'A-211', 'A-212', 'A-213', 'A-214', 'A-215', 'A-216', 'A-217', 'A-218', 'A-219', 'A-220', 'A-221', 'A-222', 'A-223', 'A-224A', 'A-225', 'A-226', 'A-227', 'A-228', 'A-229'],
+  '3': ['A-301', 'A-302', 'A-303', 'A-304', 'A-305', 'A-306', 'A-307', 'A-308', 'A-309', 'A-310', 'A-311', 'A-312', 'A-313', 'A-314', 'A-315', 'A-316', 'A-317', 'A-318', 'A-319', 'A-320', 'A-321', 'A-322', 'A-323', 'A-324', 'A-325', 'A-326', 'A-327', 'A-328', 'A-329'],
+  '4': ['A-401', 'A-402', 'A-403', 'A-404', 'A-405', 'A-406', 'A-407', 'A-408', 'A-409', 'A-410', 'A-411', 'A-412', 'A-413', 'A-414', 'A-415', 'A-416', 'A-417', 'A-418', 'A-419'],
+  '6': ['A-601', 'A-602', 'A-603', 'A-604', 'A-605'],
+  '7': ['A-701', 'A-702', 'A-703', 'A-704', 'A-705'] // Sixth Floor Mezzanine
+};
+
 const campusConfig = {
   Arlegui: {
     "Arlegui (A)": { prefix: "A", maxFloor: 6 }
@@ -22,7 +32,8 @@ export default function CreateReport({
   onSuccess,
   onCancel,
   onClose,
-  initialPhotos = []
+  initialPhotos = [],
+  initialPhoto = null
 }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -59,9 +70,63 @@ export default function CreateReport({
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [description, setDescription] = useState('');
-  const [photos, setPhotos] = useState(
-    initialPhotos.length > 0 ? initialPhotos : (location.state?.preloadedPhotos || [])
-  );
+  
+  // Constraint 4: Pre-fill photos with initialPhoto (File or object) or initialPhotos
+  const [photos, setPhotos] = useState(() => {
+    if (initialPhoto) {
+      if (initialPhoto instanceof File) {
+        return [
+          {
+            name: initialPhoto.name,
+            size: initialPhoto.size,
+            dataUrl: URL.createObjectURL(initialPhoto),
+            file: initialPhoto,
+          },
+        ];
+      }
+      return [initialPhoto];
+    }
+    if (initialPhotos && initialPhotos.length > 0) return initialPhotos;
+    const routerPhoto = location.state?.initialPhoto;
+    if (routerPhoto) {
+      if (routerPhoto instanceof File) {
+        return [
+          {
+            name: routerPhoto.name,
+            size: routerPhoto.size,
+            dataUrl: URL.createObjectURL(routerPhoto),
+            file: routerPhoto,
+          },
+        ];
+      }
+      return [routerPhoto];
+    }
+    return location.state?.preloadedPhotos || [];
+  });
+
+  // Sync when initialPhoto or initialPhotos changes
+  useEffect(() => {
+    if (initialPhoto) {
+      if (initialPhoto instanceof File) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPhotos([
+            {
+              name: initialPhoto.name,
+              size: initialPhoto.size,
+              dataUrl: reader.result,
+              file: initialPhoto,
+            },
+          ]);
+        };
+        reader.readAsDataURL(initialPhoto);
+      } else {
+        setPhotos([initialPhoto]);
+      }
+    } else if (initialPhotos && initialPhotos.length > 0) {
+      setPhotos(initialPhotos);
+    }
+  }, [initialPhoto, initialPhotos]);
 
   // Validation & status states
   const [floorError, setFloorError] = useState('');
@@ -72,6 +137,8 @@ export default function CreateReport({
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
   const [submittedTicket, setSubmittedTicket] = useState(null);
+  // Constraint 2: Tracks whether the guest submission has completed successfully
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Fetch dynamic categories on component mount
   useEffect(() => {
@@ -94,6 +161,12 @@ export default function CreateReport({
     };
     fetchCategories();
   }, []);
+
+  // Constraint 4: Auto-clear room when floor or campus changes
+  useEffect(() => {
+    setRoom('');
+    setFloorError('');
+  }, [floor, campus]);
 
   // Floor options dynamically generated from 1 to maxFloor of the selected building
   const availableCampuses = Object.keys(campusConfig);
@@ -271,12 +344,11 @@ export default function CreateReport({
 
     try {
       const formData = buildFormData(emailToSubmit);
-      let res;
       if (isGuest) {
-        res = await createGuestTicket(formData);
+        // Constraint 3: On success, show the in-modal success view instead of immediately redirecting
+        const res = await createGuestTicket(formData);
         setSubmittedTicket(res.ticket);
-        setShowEmailModal(false);
-        if (onSuccess) onSuccess(res.ticket);
+        setIsSubmitted(true);
       } else {
         await createTicket(formData);
         navigate('/my-reports');
@@ -372,28 +444,51 @@ export default function CreateReport({
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Room
               </label>
-              <input
-                type="text"
-                required={isRoomSpecific}
-                disabled={!isRoomSpecific}
-                value={room}
-                onChange={handleRoomChange}
-                placeholder="Room"
-                className={`w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors ${
-                  !isRoomSpecific
-                    ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                    : floorError
-                    ? 'bg-slate-50 dark:bg-slate-900 border-red-500 focus:border-red-500'
-                    : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-primary'
-                }`}
-              />
-              {floorError && isRoomSpecific && (
+
+              {/* Constraint 2: Dropdown for Arlegui, free-text fallback for other campuses */}
+              {campus === 'Arlegui' ? (
+                <select
+                  required={isRoomSpecific}
+                  disabled={!isRoomSpecific}
+                  value={room}
+                  onChange={(e) => setRoom(e.target.value)}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none transition-colors ${
+                    !isRoomSpecific
+                      ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-primary'
+                  }`}
+                >
+                  <option value="">Select a room</option>
+                  {(arleguiRooms[floor] || []).map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required={isRoomSpecific}
+                  disabled={!isRoomSpecific}
+                  value={room}
+                  onChange={handleRoomChange}
+                  placeholder="Room"
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors ${
+                    !isRoomSpecific
+                      ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                      : floorError
+                      ? 'bg-slate-50 dark:bg-slate-900 border-red-500 focus:border-red-500'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-primary'
+                  }`}
+                />
+              )}
+
+              {/* Floor mismatch error — only relevant for free-text (non-Arlegui) path */}
+              {floorError && isRoomSpecific && campus !== 'Arlegui' && (
                 <div className="text-red-500 dark:text-red-400 text-xs font-medium mt-1">
                   Floor mismatch
                 </div>
               )}
 
-              {/* Not in a specific room checkbox */}
+              {/* Constraint 3: Not in a specific room checkbox — preserved and functional */}
               <label className="flex items-center space-x-2 mt-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -549,85 +644,97 @@ export default function CreateReport({
       {showEmailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
           <div className="w-full max-w-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-2xl relative">
-            <button
-              type="button"
-              onClick={() => setShowEmailModal(false)}
-              aria-label="Close"
-              className="absolute top-4 right-4 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
 
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4 text-center">
-              Get status updates (Optional)
-            </h2>
+            {/* Constraint 4: Conditional UI — success view vs. email-capture form */}
+            {isSubmitted ? (
+              // Success state
+              <div className="text-center space-y-4">
+                <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={guestEmail}
-                  onChange={(e) => setGuestEmail(e.target.value)}
-                  placeholder="Email"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary"
-                />
-              </div>
+                {/* Constraint 1: Updated success heading and tagline */}
+                <div className="space-y-1">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">Report Received!</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Thank you for helping us keep the campus safe.
+                  </p>
+                  {/* Constraint 1: Conditional subtext shown only when the guest provided an email */}
+                  {guestEmail && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-1">
+                      A confirmation has been sent to your email.
+                    </p>
+                  )}
+                </div>
 
-              <div className="flex gap-2">
+                {/* OK — tear down parent overlay first, then navigate to avoid flash */}
                 <button
                   type="button"
-                  disabled={loading}
-                  onClick={() => executeSubmission('')}
-                  className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs transition-colors"
+                  onClick={() => {
+                    // Unmount Landing's modal overlay before navigating so it doesn't flash
+                    if (onSuccess) onSuccess();
+                    // Close the inner email-modal state
+                    setShowEmailModal(false);
+                    // Redirect to landing page
+                    navigate('/');
+                  }}
+                  className="w-full py-2.5 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
                 >
-                  Skip & Submit
-                </button>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => executeSubmission(guestEmail)}
-                  className="flex-1 py-2.5 px-3 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-xs transition-colors"
-                >
-                  Submit Tip
+                  OK
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            ) : (
+              // Email-capture form (default / pre-submission state)
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowEmailModal(false)}
+                  aria-label="Close"
+                  className="absolute top-4 right-4 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
 
-      {/* Guest Submission Success Modal */}
-      {submittedTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-2xl text-center space-y-4">
-            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4 text-center">
+                  Get status updates (Optional)
+                </h2>
 
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">Tip Submitted</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="Email"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary"
+                    />
+                  </div>
 
-            <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 font-mono text-sm text-primary font-bold">
-              {submittedTicket.ticketId}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSubmittedTicket(null);
-                setRoom('');
-                setLandmark('');
-                const firstCat = categories[0];
-                setIssueCategory(typeof firstCat === 'string' ? firstCat : (firstCat?.issueName || ''));
-                setDescription('');
-                setPhotos([]);
-              }}
-              className="w-full py-2.5 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-sm transition-colors"
-            >
-              Done
-            </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => executeSubmission('')}
+                      className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs transition-colors"
+                    >
+                      Skip &amp; Submit
+                    </button>
+                    {/* Constraint 1: Renamed from "Submit Tip" → "Submit" */}
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => executeSubmission(guestEmail)}
+                      className="flex-1 py-2.5 px-3 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-xs transition-colors"
+                    >
+                      {loading ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

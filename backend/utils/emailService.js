@@ -61,3 +61,37 @@ exports.sendRegistrationOtpEmail = async (to, otp) => {
     console.error('[Nodemailer Error]:', error.message);
   }
 };
+
+// Constraint 3 & 4: Guest submission confirmation email
+exports.sendGuestConfirmationEmail = async ({ to, category, campus, building }) => {
+  try {
+    const transporter = createTransporter();
+
+    const htmlContent = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1e293b">
+        <h2 style="color:#f59e0b;margin-bottom:8px">TIPped</h2>
+        <p>Hello,</p>
+        <p>
+          We have successfully received your report regarding
+          <strong>${category}</strong> at <strong>${campus} &ndash; ${building}</strong>.
+          Our team will review it shortly.
+        </p>
+        <p>Thank you for your submission!</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
+        <p style="font-size:11px;color:#94a3b8">This is an automated message. Please do not reply.</p>
+      </div>
+    `;
+
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+      to,
+      subject: 'Report Received - TIPped',
+      html: htmlContent,
+    });
+
+    console.log(`[Nodemailer] Guest confirmation email dispatched to ${to}`);
+    return info;
+  } catch (error) {
+    console.error('[Nodemailer Error] Guest confirmation:', error.message);
+  }
+};

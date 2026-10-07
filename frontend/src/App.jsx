@@ -66,7 +66,7 @@ export default function App() {
           element={
             currentUser ? (
               <Navigate
-                to={currentUser.role === 'User' ? '/dashboard' : '/admin'}
+                to={currentUser.role === 'User' || currentUser.role === 'user' ? '/dashboard' : '/admin'}
                 replace
               />
             ) : (

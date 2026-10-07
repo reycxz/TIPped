@@ -21,6 +21,11 @@ export const loginUser = async (email, password) => {
   return response.data;
 };
 
+export const googleAuthApi = async (userData) => {
+  const response = await axios.post('/api/users/google-auth', userData);
+  return response.data;
+};
+
 export const registerUser = async (userData) => {
   const response = await api.post('/register', userData);
   return response.data;
@@ -45,6 +50,8 @@ export const updateProfile = async (profileData) => {
   const response = await api.put('/profile', profileData);
   return response.data;
 };
+
+export const updateUserProfile = updateProfile;
 
 export const changePassword = async (currentPassword, newPassword) => {
   const response = await api.put('/change-password', { currentPassword, newPassword });

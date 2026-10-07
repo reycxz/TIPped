@@ -43,7 +43,7 @@ exports.register = async (req, res) => {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: normalizedEmail,
-      program: program ? program.trim() : '',
+      program: program ? program.trim() : 'Not Specified',
       password,
       role: role || 'User',
       departmentCategory: departmentCategory ? departmentCategory.trim() : null,
@@ -144,6 +144,14 @@ exports.login = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
+    // Constraint 5: Check if user registered with Google
+    if (user.authProvider === 'google') {
+      return res.status(400).json({
+        message: 'Please log in using Google.',
+        error: 'Please log in using Google.'
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -152,6 +160,70 @@ exports.login = async (req, res) => {
     res.json({ token, user });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Google Sign-In / OAuth
+// @route   POST /api/users/google-auth or POST /api/auth/google-auth
+// @access  Public
+exports.googleAuth = async (req, res) => {
+  try {
+    const { email, firstName, lastName, name, avatar } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required for Google Sign-In' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await User.findOne({ email: normalizedEmail });
+
+    if (user) {
+      const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+      const userObj = user.toObject();
+      delete userObj.password;
+      return res.status(200).json({
+        message: 'Google login successful',
+        token,
+        user: userObj
+      });
+    }
+
+    let derivedFirstName = firstName ? firstName.trim() : '';
+    let derivedLastName = lastName ? lastName.trim() : '';
+    if (!derivedFirstName && name) {
+      const parts = name.trim().split(' ');
+      derivedFirstName = parts[0] || 'Google';
+      derivedLastName = parts.slice(1).join(' ') || 'User';
+    }
+    if (!derivedFirstName) derivedFirstName = 'Google';
+    if (!derivedLastName) derivedLastName = 'User';
+
+    // Constraint 4: Explicitly sets authProvider: 'google' and does NOT attempt to pass a password field
+    // Constraint 2: Explicitly set role: 'user'
+    user = new User({
+      firstName: derivedFirstName,
+      lastName: derivedLastName,
+      email: normalizedEmail,
+      program: 'Not Specified',
+      role: 'user',
+      isVerified: true,
+      authProvider: 'google',
+      avatar: avatar || 'avatar-1'
+    });
+
+    await user.save();
+
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    return res.status(201).json({
+      message: 'Google login successful',
+      token,
+      user: userObj
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Server error during Google authentication' });
   }
 };
 
@@ -229,35 +301,41 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-// @desc    Update profile (firstName, lastName, avatar)
+// @desc    Update profile (firstName, lastName, avatar, program)
 // @route   PUT /api/auth/profile
 // @access  Private
 exports.updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, avatar } = req.body;
-
-    const user = await User.findById(req.user._id);
+    const userId = req.user.id || req.user._id;
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const { firstName, lastName, avatar, program } = req.body;
+
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
     if (avatar) user.avatar = avatar;
+    user.program = req.body.program || user.program;
 
     await user.save();
 
     const userObj = user.toObject();
     delete userObj.password;
 
-    res.json({
-      message: 'Profile updated',
+    res.status(200).json({
+      message: 'Profile updated successfully',
       user: userObj,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
+// Aliases for compatibility
+exports.updateUserProfile = exports.updateProfile;
+exports.registerUser = exports.register;
 
 // @desc    Change password (authenticated) - Unified password update preserving _id
 // @route   PUT /api/auth/change-password
