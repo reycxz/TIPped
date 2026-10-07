@@ -105,22 +105,22 @@ export default function App() {
           }
         >
           <Route path="/admin" element={<AdminQueue user={currentUser} />} />
-          <Route path="/admin/archive" element={<ArchivedReports user={currentUser} />} />
-          <Route path="/archive" element={<ArchivedReports user={currentUser} />} />
-          <Route path="/reports/archived" element={<ArchivedReports user={currentUser} />} />
         </Route>
 
-        {/* Superadmin Only Route */}
+        {/* Superadmin Only Routes - Strictly locked to superadmin */}
         <Route
           element={
             <ProtectedLayout
               user={currentUser}
               onLogout={handleLogout}
-              allowedRoles={['Superadmin', 'Department', 'superadmin', 'department']}
+              allowedRoles={['Superadmin', 'superadmin']}
             />
           }
         >
           <Route path="/analytics" element={<Analytics user={currentUser} />} />
+          <Route path="/admin/archive" element={<ArchivedReports user={currentUser} />} />
+          <Route path="/archive" element={<ArchivedReports user={currentUser} />} />
+          <Route path="/reports/archived" element={<ArchivedReports user={currentUser} />} />
         </Route>
 
         {/* Fallback */}

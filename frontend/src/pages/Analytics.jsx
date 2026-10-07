@@ -175,37 +175,29 @@ export default function Analytics({ user }) {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Top Header with Campus and Timeframe Select Dropdowns at Top Right */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-colors duration-200">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-            Analytics
-          </h1>
-        </div>
+      {/* Slim Filter Bar holding Campus and Timeframe dropdowns */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 shadow-sm flex items-center justify-end gap-3 transition-colors duration-200">
+        {/* Campus Select Dropdown */}
+        <select
+          value={campus}
+          onChange={(e) => setCampus(e.target.value)}
+          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
+        >
+          <option value="All">All</option>
+          <option value="Arlegui">Arlegui</option>
+          <option value="Casal">Casal</option>
+        </select>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Campus Select Dropdown */}
-          <select
-            value={campus}
-            onChange={(e) => setCampus(e.target.value)}
-            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
-          >
-            <option value="All">All</option>
-            <option value="Arlegui">Arlegui</option>
-            <option value="Casal">Casal</option>
-          </select>
-
-          {/* Timeframe Select Dropdown */}
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
-          >
-            <option value="Last 7 Days">Last 7 Days</option>
-            <option value="Last 30 Days">Last 30 Days</option>
-            <option value="All Time">All Time</option>
-          </select>
-        </div>
+        {/* Timeframe Select Dropdown */}
+        <select
+          value={timeframe}
+          onChange={(e) => setTimeframe(e.target.value)}
+          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
+        >
+          <option value="Last 7 Days">Last 7 Days</option>
+          <option value="Last 30 Days">Last 30 Days</option>
+          <option value="All Time">All Time</option>
+        </select>
       </div>
 
       {error && (

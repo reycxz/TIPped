@@ -17,7 +17,7 @@ const DEFAULT_DEPARTMENTS = [
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 
-export default function TicketDrawer({
+export default function TicketModal({
   user: propUser,
   ticket,
   isOpen,

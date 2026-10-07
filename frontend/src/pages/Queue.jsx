@@ -28,7 +28,7 @@ import {
   ArrowDown,
 } from 'lucide-react';
 
-export default function AdminQueue({ user }) {
+export default function Queue({ user }) {
   // Navigation tab state for Superadmin
   const [activeTab, setActiveTab] = useState('queue');
 
