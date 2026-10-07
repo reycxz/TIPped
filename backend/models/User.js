@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema(
       },
       default: 'User'
     },
+    assignedCategories: {
+      type: [String],
+      default: []
+    },
     departmentCategory: {
       type: String,
       trim: true,
@@ -67,8 +71,14 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Hash password before saving if modified
+// Pre-save hook to hash password and sync category fields
 userSchema.pre('save', async function () {
+  if (Array.isArray(this.assignedCategories) && this.assignedCategories.length > 0 && !this.departmentCategory) {
+    this.departmentCategory = this.assignedCategories[0];
+  } else if (this.departmentCategory && (!this.assignedCategories || this.assignedCategories.length === 0)) {
+    this.assignedCategories = [this.departmentCategory];
+  }
+
   if (!this.isModified('password')) {
     return;
   }

@@ -108,30 +108,30 @@ export default function MyReports() {
   return (
     <div className="space-y-6 pb-20">
       {/* Header - 1-2 words only, no subtitles */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-6 shadow-sm">
-        <h1 className="text-xl sm:text-2xl font-bold text-text">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm transition-colors duration-200">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
           My Reports
         </h1>
       </div>
 
       {/* Smart Search & Filter Controls */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between transition-colors duration-200">
         {/* Fast Smart Search Bar */}
         <div className="relative w-full sm:max-w-md">
-          <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search"
-            className="w-full pl-9 pr-8 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+            className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
               aria-label="Clear"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-text"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -146,23 +146,23 @@ export default function MyReports() {
             aria-label="Filter"
             className={`p-2.5 rounded-lg border transition-colors flex items-center space-x-2 text-xs font-semibold ${
               filterOpen || statusFilter !== 'All' || categoryFilter !== 'All'
-                ? 'border-primary text-primary bg-background/80'
-                : 'border-slate-700 text-muted hover:text-primary hover:border-primary bg-background/50'
+                ? 'border-primary text-primary bg-amber-500/10'
+                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-primary hover:border-primary bg-slate-50 dark:bg-slate-900'
             }`}
           >
             <Filter className="w-4 h-4" />
           </button>
 
           {filterOpen && (
-            <div className="absolute right-0 mt-2 top-full w-64 bg-surface border border-slate-700 rounded-xl shadow-2xl p-4 z-50 space-y-3">
+            <div className="absolute right-0 mt-2 top-full w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-4 z-50 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   Status
                 </label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-background border border-slate-700 rounded-lg text-xs text-text focus:outline-none focus:border-primary"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
                 >
                   <option value="All">All</option>
                   <option value="Pending">Pending</option>
@@ -172,13 +172,13 @@ export default function MyReports() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   Category
                 </label>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-background border border-slate-700 rounded-lg text-xs text-text focus:outline-none focus:border-primary"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
                 >
                   <option value="All">All</option>
                   {categories.map((cat) => (
@@ -206,104 +206,119 @@ export default function MyReports() {
         </div>
       </div>
 
-      {/* Ticket Cards List */}
+      {/* Ticket Cards Responsive Grid */}
       {loading ? (
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-16 text-center text-muted text-sm">
-          Loading...
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-16 text-center text-slate-500 dark:text-slate-400 text-sm">
+          Loading reports...
         </div>
       ) : tickets.length === 0 ? (
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-16 text-center shadow-sm">
-          <p className="text-muted text-sm font-medium">
-            {isFiltered ? 'No results' : 'No reports'}
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-16 text-center shadow-sm">
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+            {isFiltered ? 'No reports match your filters.' : 'No reports submitted yet.'}
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tickets.map((ticket) => (
             <div
               key={ticket._id}
-              className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm space-y-4 hover:border-slate-600 transition-all"
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 shadow-sm hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-200 flex flex-col justify-between space-y-3.5 group"
             >
-              {/* Header row: Ticket ID, Location, Category, Status Badge */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/40 pb-3">
-                <div className="flex items-center space-x-3">
-                  <span className="font-mono font-bold text-primary text-base">
-                    {ticket.ticketId}
-                  </span>
-                  <span className="text-xs px-2 py-0.5 rounded bg-background border border-slate-700 text-text font-medium">
-                    {ticket.issueCategory || ticket.category}
-                  </span>
-                  {ticket.assignedDepartment && (
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-primary font-mono">
-                      {ticket.assignedDepartment}
+              {/* Upper Section: Header, Details, Description, Photos */}
+              <div className="space-y-3">
+                {/* Header: Ticket ID, Date, and Status Badge */}
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2.5">
+                  <div className="min-w-0">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono font-bold text-primary text-sm tracking-wide">
+                        {ticket.ticketId}
+                      </span>
+                      {ticket.assignedDepartment && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-primary font-mono truncate">
+                          {ticket.assignedDepartment}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
+                      <span>{new Date(ticket.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0">
+                    {getStatusBadge(ticket.status)}
+                  </div>
+                </div>
+
+                {/* Category & Location Info */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center space-x-1.5 text-slate-900 dark:text-white">
+                    <Tag className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                    <span className="font-medium truncate">
+                      {ticket.issueCategory || ticket.category || 'General Issue'}
                     </span>
-                  )}
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <div className="text-xs text-muted flex items-center">
-                    <Clock className="w-3.5 h-3.5 mr-1" />
-                    {new Date(ticket.createdAt).toLocaleDateString()}
                   </div>
-                  {getStatusBadge(ticket.status)}
-                </div>
-              </div>
-
-              {/* Location & Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div className="flex items-center text-text">
-                  <MapPin className="w-3.5 h-3.5 mr-1.5 text-muted flex-shrink-0" />
-                  <span>
-                    {ticket.campus} • {ticket.locationInfo?.building} • Room {ticket.locationInfo?.room}
-                    {ticket.locationInfo?.landmark ? ` (${ticket.locationInfo.landmark})` : ''}
-                  </span>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="bg-background/60 p-3 rounded-lg border border-slate-700/40 text-xs text-text whitespace-pre-wrap">
-                {ticket.description}
-              </div>
-
-              {/* Evidence Photos Gallery */}
-              {ticket.images && ticket.images.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-                    Photos
+                  <div className="flex items-center text-slate-500 dark:text-slate-400">
+                    <MapPin className="w-3.5 h-3.5 mr-1.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                    <span className="truncate">
+                      {ticket.campus} • {ticket.locationInfo?.building || 'Main'}
+                      {ticket.locationInfo?.room ? ` (Rm ${ticket.locationInfo.room})` : ''}
+                    </span>
                   </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                    {ticket.images.map((img, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => setZoomedImage(img)}
-                        className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 bg-background cursor-pointer group"
-                      >
-                        <img
-                          src={img}
-                          alt=""
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <ZoomIn className="w-4 h-4 text-white" />
+                </div>
+
+                {/* Compact Description (Line Clamp 2) */}
+                <p
+                  className="text-xs text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/40 line-clamp-2 leading-relaxed"
+                  title={ticket.description}
+                >
+                  {ticket.description}
+                </p>
+
+                {/* Evidence Photos (Small, Uniform Thumbnails: w-full h-32 object-cover rounded-md) */}
+                {ticket.images && ticket.images.length > 0 && (
+                  <div className="space-y-1">
+                    <div className={`grid gap-2 ${ticket.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {ticket.images.slice(0, 2).map((img, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setZoomedImage(img)}
+                          className="relative h-32 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 cursor-pointer group/img"
+                        >
+                          <img
+                            src={img}
+                            alt="Report evidence"
+                            className="w-full h-32 object-cover rounded-md group-hover/img:scale-105 transition-transform duration-200"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity rounded-md">
+                            <ZoomIn className="w-4 h-4 text-white" />
+                          </div>
+                          {idx === 1 && ticket.images.length > 2 && (
+                            <div className="absolute bottom-1.5 right-1.5 bg-black/80 backdrop-blur-xs text-white text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20">
+                              +{ticket.images.length - 2}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Admin Remarks */}
+              {/* Remarks Section Restyled (Compact, max-h-24, scrollable) */}
               {ticket.adminRemarks && ticket.adminRemarks.length > 0 && (
-                <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2">
-                  <div className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider">
-                    Remarks
+                <div className="p-2.5 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-amber-500 dark:text-amber-400 uppercase tracking-wider">
+                    <span>Remarks ({ticket.adminRemarks.length})</span>
+                    <span className="text-slate-500 dark:text-slate-400 font-normal lowercase font-mono">
+                      {new Date(ticket.adminRemarks[ticket.adminRemarks.length - 1].timestamp).toLocaleDateString()}
+                    </span>
                   </div>
-                  <div className="space-y-1.5">
-                    {ticket.adminRemarks.map((remark, idx) => (
-                      <div key={idx} className="text-xs text-text flex flex-col">
-                        <span>{remark.note}</span>
-                        <span className="text-[10px] text-muted font-mono mt-0.5">
-                          {new Date(remark.timestamp).toLocaleString()}
+                  <div className="max-h-24 overflow-y-auto space-y-1.5 pr-1 divide-y divide-amber-500/10">
+                    {[...ticket.adminRemarks].reverse().map((remark, idx) => (
+                      <div key={idx} className={`text-xs text-slate-800 dark:text-slate-200 flex flex-col ${idx > 0 ? 'pt-1.5' : ''}`}>
+                        <span className="leading-snug">{remark.note}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                          {new Date(remark.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     ))}

@@ -53,6 +53,7 @@ export default function CreateReport({
   const [building, setBuilding] = useState('Arlegui (A)');
   const [floor, setFloor] = useState('1');
   const [room, setRoom] = useState('');
+  const [isRoomSpecific, setIsRoomSpecific] = useState(true);
   const [landmark, setLandmark] = useState('');
   const [issueCategory, setIssueCategory] = useState('');
   const [categories, setCategories] = useState([]);
@@ -134,7 +135,7 @@ export default function CreateReport({
 
   // Validate room first digit matches floor
   const validateRoomFloor = (selectedFloor, roomInput) => {
-    if (!roomInput.trim()) {
+    if (!isRoomSpecific || !roomInput.trim()) {
       setFloorError('');
       return true;
     }
@@ -199,7 +200,9 @@ export default function CreateReport({
     formData.append('campus', campus);
     formData.append('building', building);
     formData.append('floor', floor);
-    formData.append('room', room.trim());
+    // Constraint 1: Dynamically template room to start with floor number to satisfy backend floor matching
+    const finalRoom = isRoomSpecific ? room.trim() : `${floor} - Common Area`;
+    formData.append('room', finalRoom);
     if (landmark) formData.append('landmark', landmark.trim());
     formData.append('issueCategory', issueCategory);
     formData.append('category', issueCategory);
@@ -242,10 +245,14 @@ export default function CreateReport({
     e.preventDefault();
     setGeneralError('');
 
-    const isFloorValid = validateRoomFloor(floor, room);
-    if (!isFloorValid) {
-      setFloorError('Floor mismatch');
-      return;
+    if (isRoomSpecific) {
+      const isFloorValid = validateRoomFloor(floor, room);
+      if (!isFloorValid) {
+        setFloorError('Floor mismatch');
+        return;
+      }
+    } else {
+      setFloorError('');
     }
 
     // Guest submission: intercept with Email Capture Modal
@@ -283,22 +290,22 @@ export default function CreateReport({
 
   return (
     <div className="max-w-2xl mx-auto py-4">
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-6 sm:p-8 shadow-2xl">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 sm:p-8 shadow-lg dark:shadow-2xl transition-colors duration-200">
         {/* Constraint 1: Header title horizontally aligned with subtle 'X' close button */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-text">Create Report</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Create Report</h1>
           <button
             type="button"
             onClick={handleCancel}
             aria-label="Close"
-            className="p-1.5 text-muted hover:text-text rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer"
+            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {generalError && (
-          <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-400 flex items-center space-x-2 text-xs">
+          <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 flex items-center space-x-2 text-xs">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{generalError}</span>
           </div>
@@ -308,13 +315,13 @@ export default function CreateReport({
           {/* Campus & Building */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Campus
               </label>
               <select
                 value={campus}
                 onChange={handleCampusChange}
-                className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
                 {availableCampuses.map((camp) => (
                   <option key={camp} value={camp}>
@@ -325,13 +332,13 @@ export default function CreateReport({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Building
               </label>
               <select
                 value={building}
                 onChange={handleBuildingChange}
-                className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
                 {availableBuildings.map((bld) => (
                   <option key={bld} value={bld}>
@@ -345,13 +352,13 @@ export default function CreateReport({
           {/* Floor & Room with strict validation */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Floor
               </label>
               <select
                 value={floor}
                 onChange={handleFloorChange}
-                className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
                 {availableFloors.map((num) => (
                   <option key={num} value={num}>
@@ -362,53 +369,80 @@ export default function CreateReport({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Room
               </label>
               <input
                 type="text"
-                required
+                required={isRoomSpecific}
+                disabled={!isRoomSpecific}
                 value={room}
                 onChange={handleRoomChange}
                 placeholder="Room"
-                className={`w-full px-3 py-2.5 bg-background border rounded-lg text-sm text-text placeholder-slate-500 focus:outline-none transition-colors ${
-                  floorError
-                    ? 'border-red-500 focus:border-red-500'
-                    : 'border-slate-700 focus:border-primary'
+                className={`w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors ${
+                  !isRoomSpecific
+                    ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                    : floorError
+                    ? 'bg-slate-50 dark:bg-slate-900 border-red-500 focus:border-red-500'
+                    : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-primary'
                 }`}
               />
-              {floorError && (
-                <div className="text-red-400 text-xs font-medium mt-1">
+              {floorError && isRoomSpecific && (
+                <div className="text-red-500 dark:text-red-400 text-xs font-medium mt-1">
                   Floor mismatch
                 </div>
               )}
+
+              {/* Not in a specific room checkbox */}
+              <label className="flex items-center space-x-2 mt-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!isRoomSpecific}
+                  onChange={(e) => {
+                    const notInRoom = e.target.checked;
+                    setIsRoomSpecific(!notInRoom);
+                    if (notInRoom) {
+                      setRoom('');
+                      setFloorError('');
+                    }
+                  }}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-primary focus:ring-primary focus:ring-offset-0 bg-slate-50 dark:bg-slate-900 cursor-pointer"
+                />
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  Not in a specific room (e.g., hallway, lobby)
+                </span>
+              </label>
             </div>
           </div>
 
           {/* Landmark & Category */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Landmark
               </label>
               <input
                 type="text"
                 value={landmark}
                 onChange={(e) => setLandmark(e.target.value)}
-                placeholder="Landmark"
-                className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                placeholder={
+                  !isRoomSpecific
+                    ? "Describe the area (e.g., Near stairs, Main Lobby)"
+                    : "Landmark"
+                }
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Category
               </label>
               <select
                 value={issueCategory}
                 onChange={(e) => setIssueCategory(e.target.value)}
                 required
-                className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
                 {categories.length === 0 ? (
                   <option value="">{categoriesLoading ? 'Loading categories...' : 'No categories available'}</option>
@@ -429,7 +463,7 @@ export default function CreateReport({
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
               Description
             </label>
             <textarea
@@ -438,13 +472,13 @@ export default function CreateReport({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Description"
-              className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
             />
           </div>
 
           {/* Photos / Media Gallery: 2-5 files supported */}
           <div>
-            <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
               Photos
             </label>
 
@@ -453,7 +487,7 @@ export default function CreateReport({
                 {photos.map((photo, index) => (
                   <div
                     key={index}
-                    className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 bg-background group"
+                    className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 group"
                   >
                     <img
                       src={photo.dataUrl || photo}
@@ -474,9 +508,9 @@ export default function CreateReport({
             )}
 
             {photos.length < 5 && (
-              <label className="flex items-center justify-center p-4 border border-dashed border-slate-700 rounded-lg cursor-pointer hover:border-primary transition-colors bg-background/50">
-                <Upload className="w-5 h-5 text-muted mr-2" />
-                <span className="text-xs text-muted font-medium">
+              <label className="flex items-center justify-center p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg cursor-pointer hover:border-primary transition-colors bg-slate-50/80 dark:bg-slate-900/50">
+                <Upload className="w-5 h-5 text-slate-500 dark:text-slate-400 mr-2" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                   Upload Photos
                 </span>
                 <input
@@ -496,14 +530,14 @@ export default function CreateReport({
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="py-3 px-5 bg-transparent border border-slate-700 hover:border-slate-500 hover:bg-slate-800/40 text-muted hover:text-text font-semibold rounded-lg text-sm transition-colors cursor-pointer"
+              className="py-3 px-5 bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-semibold rounded-lg text-sm transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !!floorError}
-              className="flex-1 py-3 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-background font-semibold rounded-lg text-sm transition-colors cursor-pointer"
+              className="flex-1 py-3 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
             >
               {loading ? 'Submitting...' : 'Submit'}
             </button>
@@ -514,23 +548,23 @@ export default function CreateReport({
       {/* Guest Email Capture Modal */}
       {showEmailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-surface border border-slate-700 rounded-xl p-6 shadow-2xl relative">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-2xl relative">
             <button
               type="button"
               onClick={() => setShowEmailModal(false)}
               aria-label="Close"
-              className="absolute top-4 right-4 text-muted hover:text-text transition-colors"
+              className="absolute top-4 right-4 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-sm font-semibold text-text mb-4 text-center">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4 text-center">
               Get status updates (Optional)
             </h2>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   Email
                 </label>
                 <input
@@ -538,7 +572,7 @@ export default function CreateReport({
                   value={guestEmail}
                   onChange={(e) => setGuestEmail(e.target.value)}
                   placeholder="Email"
-                  className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-sm text-text placeholder-slate-500 focus:outline-none focus:border-primary"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary"
                 />
               </div>
 
@@ -547,7 +581,7 @@ export default function CreateReport({
                   type="button"
                   disabled={loading}
                   onClick={() => executeSubmission('')}
-                  className="flex-1 py-2.5 px-3 bg-background border border-slate-700 hover:border-primary text-text font-semibold rounded-lg text-xs transition-colors"
+                  className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs transition-colors"
                 >
                   Skip & Submit
                 </button>
@@ -555,7 +589,7 @@ export default function CreateReport({
                   type="button"
                   disabled={loading}
                   onClick={() => executeSubmission(guestEmail)}
-                  className="flex-1 py-2.5 px-3 bg-primary hover:bg-amber-500 text-background font-semibold rounded-lg text-xs transition-colors"
+                  className="flex-1 py-2.5 px-3 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-xs transition-colors"
                 >
                   Submit Tip
                 </button>
@@ -568,14 +602,14 @@ export default function CreateReport({
       {/* Guest Submission Success Modal */}
       {submittedTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-surface border border-slate-700 rounded-xl p-6 shadow-2xl text-center space-y-4">
-            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-2xl text-center space-y-4">
+            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
               <CheckCircle2 className="w-6 h-6" />
             </div>
 
-            <h2 className="text-base font-bold text-text">Tip Submitted</h2>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Tip Submitted</h2>
 
-            <div className="p-3 bg-background rounded-lg border border-slate-700 font-mono text-sm text-primary font-bold">
+            <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 font-mono text-sm text-primary font-bold">
               {submittedTicket.ticketId}
             </div>
 
@@ -590,7 +624,7 @@ export default function CreateReport({
                 setDescription('');
                 setPhotos([]);
               }}
-              className="w-full py-2.5 bg-primary hover:bg-amber-500 text-background font-semibold rounded-lg text-sm transition-colors"
+              className="w-full py-2.5 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-sm transition-colors"
             >
               Done
             </button>

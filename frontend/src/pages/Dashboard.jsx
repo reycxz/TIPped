@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { getMetrics, getMyTickets } from '../api/tickets';
 import CameraFAB from '../components/CameraFAB';
-import { PlusCircle, FileText, Clock, AlertTriangle, CheckCircle, ChevronRight } from 'lucide-react';
+import { Clock, AlertTriangle, ChevronRight } from 'lucide-react';
 
 export default function Dashboard({ user }) {
+  const location = useLocation();
+  const isNewUser = location.state?.isNewUser;
+
   // KPI metrics strictly initialize at 0
   const [metrics, setMetrics] = useState({
     pending: 0,
@@ -43,10 +46,7 @@ export default function Dashboard({ user }) {
   const totalReports = metrics.pending + metrics.inProgress + metrics.resolved;
 
   const firstName = user?.firstName || '{FirstName}';
-  const isFirstTime =
-    user?.createdAt &&
-    Date.now() - new Date(user.createdAt).getTime() < 5 * 60 * 1000;
-  const bannerTitle = isFirstTime
+  const bannerTitle = isNewUser
     ? `Welcome, ${firstName}!`
     : `Welcome back, ${firstName}!`;
 
@@ -58,16 +58,17 @@ export default function Dashboard({ user }) {
   return (
     <div className="space-y-6 pb-20">
       {/* Welcome Banner - Strictly no subtitles */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-6 shadow-sm">
-        <h1 className="text-xl sm:text-2xl font-bold text-text">
+      <div className="bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-none rounded-xl p-6 transition-colors duration-200">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
           {bannerTitle}
         </h1>
       </div>
 
       {/* KPI Metrics: Strictly initialized to 0, dynamically fetched */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
+        {/* Pending Card */}
+        <div className="bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-none rounded-xl p-5 transition-colors duration-200">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Pending
           </div>
           <div className="text-3xl font-extrabold text-pending mt-2">
@@ -75,8 +76,9 @@ export default function Dashboard({ user }) {
           </div>
         </div>
 
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
+        {/* In Progress Card */}
+        <div className="bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-none rounded-xl p-5 transition-colors duration-200">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             In Progress
           </div>
           <div className="text-3xl font-extrabold text-inProgress mt-2">
@@ -84,8 +86,9 @@ export default function Dashboard({ user }) {
           </div>
         </div>
 
-        <div className="bg-surface border border-slate-700/60 rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
+        {/* Resolved Card */}
+        <div className="bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-none rounded-xl p-5 transition-colors duration-200">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Resolved
           </div>
           <div className="text-3xl font-extrabold text-resolved mt-2">
@@ -94,47 +97,20 @@ export default function Dashboard({ user }) {
         </div>
       </div>
 
-      {/* Quick Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Link
-          to="/report/new"
-          className="bg-surface border border-slate-700/60 hover:border-primary/60 rounded-xl p-5 transition-all flex items-center justify-between group shadow-sm"
-        >
-          <div className="flex items-center space-x-3">
-            <PlusCircle className="w-5 h-5 text-primary" />
-            <span className="text-sm font-semibold text-text group-hover:text-primary transition-colors">
-              Submit Report
-            </span>
-          </div>
-        </Link>
-
-        <Link
-          to="/my-reports"
-          className="bg-surface border border-slate-700/60 hover:border-primary/60 rounded-xl p-5 transition-all flex items-center justify-between group shadow-sm"
-        >
-          <div className="flex items-center space-x-3">
-            <FileText className="w-5 h-5 text-primary" />
-            <span className="text-sm font-semibold text-text group-hover:text-primary transition-colors">
-              My Reports
-            </span>
-          </div>
-        </Link>
-      </div>
-
       {/* Real Progress Chart Section */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-6 shadow-sm">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">
+      <div className="bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-none rounded-xl p-6 transition-colors duration-200">
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">
           Report Progress
         </div>
 
         {totalReports === 0 ? (
-          <div className="py-10 text-center text-muted text-xs">
+          <div className="py-10 text-center text-slate-500 dark:text-slate-400 text-xs">
             No reports
           </div>
         ) : (
           <div className="space-y-4">
             {/* Multi-segment progress bar */}
-            <div className="h-4 w-full bg-background rounded-full overflow-hidden flex">
+            <div className="h-4 w-full bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden flex">
               {metrics.pending > 0 && (
                 <div
                   style={{ width: `${(metrics.pending / totalReports) * 100}%` }}
@@ -162,15 +138,15 @@ export default function Dashboard({ user }) {
             <div className="grid grid-cols-3 gap-2 text-xs pt-2">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-pending inline-block" />
-                <span className="text-muted">Pending: {metrics.pending}</span>
+                <span className="text-slate-500 dark:text-slate-400">Pending: {metrics.pending}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-inProgress inline-block" />
-                <span className="text-muted">In Progress: {metrics.inProgress}</span>
+                <span className="text-slate-500 dark:text-slate-400">In Progress: {metrics.inProgress}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-resolved inline-block" />
-                <span className="text-muted">Resolved: {metrics.resolved}</span>
+                <span className="text-slate-500 dark:text-slate-400">Resolved: {metrics.resolved}</span>
               </div>
             </div>
           </div>
@@ -178,22 +154,22 @@ export default function Dashboard({ user }) {
       </div>
 
       {/* Real Reminders / Status Visibility based on actual tickets */}
-      <div className="bg-surface border border-slate-700/60 rounded-xl p-6 shadow-sm">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">
+      <div className="bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-none rounded-xl p-6 transition-colors duration-200">
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">
           Active Updates
         </div>
 
         {activeReminders.length === 0 ? (
-          <div className="py-8 text-center text-muted text-xs">
+          <div className="py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
             No active tickets
           </div>
         ) : (
-          <div className="divide-y divide-slate-700/40">
+          <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
             {activeReminders.map((ticket) => (
               <Link
                 key={ticket._id}
                 to="/my-reports"
-                className="py-3.5 flex items-center justify-between hover:bg-background/40 px-2 rounded-lg transition-colors group"
+                className="py-3.5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 px-2 rounded-lg transition-colors group"
               >
                 <div className="flex items-center space-x-3">
                   {ticket.status === 'Pending' ? (
@@ -202,10 +178,10 @@ export default function Dashboard({ user }) {
                     <AlertTriangle className="w-4 h-4 text-inProgress" />
                   )}
                   <div>
-                    <div className="text-xs font-mono font-bold text-text group-hover:text-primary transition-colors">
+                    <div className="text-xs font-mono font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
                       {ticket.ticketId}
                     </div>
-                    <div className="text-[11px] text-muted">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
                       {ticket.category} • {ticket.campus} - {ticket.locationInfo?.room}
                     </div>
                   </div>
@@ -221,7 +197,7 @@ export default function Dashboard({ user }) {
                   >
                     {ticket.status}
                   </span>
-                  <ChevronRight className="w-4 h-4 text-muted group-hover:text-primary transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-primary transition-colors" />
                 </div>
               </Link>
             ))}

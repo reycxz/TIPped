@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { updateTicket, getCategories } from '../api/tickets';
+import { updateTicket } from '../api/tickets';
+import { getDepartments } from '../api/adminData';
+import { getMe } from '../api/auth';
 import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
 
 const DEFAULT_DEPARTMENTS = [
@@ -15,7 +17,14 @@ const DEFAULT_DEPARTMENTS = [
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 
-export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess }) {
+export default function TicketDrawer({
+  user: propUser,
+  ticket,
+  isOpen,
+  onClose,
+  onUpdateSuccess,
+}) {
+  const [internalUser, setInternalUser] = useState(propUser || null);
   const [status, setStatus] = useState('Pending');
   const [priority, setPriority] = useState('Medium');
   const [assignedDepartment, setAssignedDepartment] = useState('General');
@@ -25,17 +34,53 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
   const [error, setError] = useState('');
   const [zoomedImage, setZoomedImage] = useState(null);
 
+  // Resolve user from props, or fallback to session
   useEffect(() => {
-    getCategories().then((cats) => {
-      if (Array.isArray(cats) && cats.length > 0) setDepartments(cats);
-    }).catch(() => {});
+    if (propUser) {
+      setInternalUser(propUser);
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        setInternalUser(JSON.parse(stored));
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+
+    getMe()
+      .then((data) => {
+        if (data) setInternalUser(data);
+      })
+      .catch(() => {});
+  }, [propUser]);
+
+  const user = propUser || internalUser || { role: '' };
+
+  // Fetch actual departments (Constraint 3)
+  useEffect(() => {
+    getDepartments()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const names = data
+            .map((d) => (typeof d === 'string' ? d : d.name))
+            .filter(Boolean);
+          if (names.length > 0) {
+            setDepartments(Array.from(new Set(names)));
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     if (ticket) {
       setStatus(ticket.status || 'Pending');
       setPriority(ticket.priority || 'Medium');
-      setAssignedDepartment(ticket.assignedDepartment || ticket.category || 'General');
+      const dept = ticket.assignedDepartment || ticket.category || 'General';
+      setAssignedDepartment(dept);
       setAdminNote('');
       setError('');
       setSaving(false);
@@ -44,16 +89,18 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
 
   if (!isOpen || !ticket) return null;
 
+  const noteLabel = user.role === 'Superadmin' ? 'ADMIN NOTE' : 'STAFF NOTE';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Constraint 1: Strict validation when status is 'Resolved'
+    // Strict validation when status is 'Resolved'
     if (status === 'Resolved' && !adminNote.trim()) {
       setError('Admin note required');
       return;
     }
 
-    // Constraint 2: Action Debouncing - disable instantly and show 'Saving...'
+    // Action Debouncing - disable instantly and show 'Saving...'
     setSaving(true);
     setError('');
 
@@ -80,19 +127,19 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end">
-      <div className="w-full max-w-xl bg-surface border-l border-slate-700 h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+      <div className="w-full max-w-xl bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-200 transition-colors">
         {/* Header */}
-        <div className="p-6 border-b border-slate-700/60 flex items-center justify-between">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between">
           <div className="space-y-1">
             <div className="flex items-center space-x-3">
               <span className="text-lg font-mono font-bold text-primary">
                 {ticket.ticketId}
               </span>
-              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700 text-text">
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
                 {priority}
               </span>
             </div>
-            <div className="flex items-center text-xs text-muted space-x-4">
+            <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 space-x-4">
               <span className="flex items-center">
                 <Clock className="w-3.5 h-3.5 mr-1" />
                 {new Date(ticket.createdAt).toLocaleDateString()}
@@ -112,7 +159,7 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-2 text-muted hover:text-text rounded-lg hover:bg-background/80 transition-colors"
+            className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -121,17 +168,17 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/40 text-red-400 text-xs rounded-lg">
+            <div className="p-3 bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 text-xs rounded-lg">
               {error}
             </div>
           )}
 
           {/* Description */}
           <div>
-            <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
               Description
             </div>
-            <p className="text-sm text-text bg-background p-3.5 rounded-lg border border-slate-700/60 whitespace-pre-wrap">
+            <p className="text-sm text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-900 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700/60 whitespace-pre-wrap">
               {ticket.description}
             </p>
           </div>
@@ -139,7 +186,7 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
           {/* Evidence Gallery: Zoomable Photo Thumbnails */}
           {ticket.images && ticket.images.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                 Evidence Gallery
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
@@ -147,7 +194,7 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
                   <div
                     key={idx}
                     onClick={() => setZoomedImage(img)}
-                    className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 bg-background cursor-pointer group"
+                    className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 cursor-pointer group"
                   >
                     <img
                       src={img}
@@ -166,31 +213,38 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
           {/* Controls Form */}
           <form id="drawer-form" onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Department Dropdown (Constraints 1 & 3) */}
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   Department
                 </label>
                 <select
                   value={assignedDepartment}
                   onChange={(e) => setAssignedDepartment(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text focus:outline-none focus:border-primary"
+                  disabled={user.role !== 'Superadmin'}
+                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800/50"
                 >
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
+                  {departments.map((dept) => {
+                    const deptName = typeof dept === 'string' ? dept : dept.name;
+                    return (
+                      <option key={deptName} value={deptName}>
+                        {deptName}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
+              {/* Priority Dropdown (Constraint 1) */}
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   Priority
                 </label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text focus:outline-none focus:border-primary"
+                  disabled={user.role !== 'Superadmin'}
+                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800/50"
                 >
                   {PRIORITIES.map((p) => (
                     <option key={p} value={p}>
@@ -200,14 +254,15 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
                 </select>
               </div>
 
+              {/* Status Dropdown (Constraint 2: Enabled for both Superadmin and Department) */}
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   Status
                 </label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text focus:outline-none focus:border-primary"
+                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -218,61 +273,60 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
               </div>
             </div>
 
-            {/* Resolution Input / Admin Note */}
+            {/* Resolution Note Text Area (Constraint 4) */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider">
-                  Admin Note
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {noteLabel}
                 </label>
                 {status === 'Resolved' && (
-                  <span className="text-[10px] text-amber-400 font-semibold uppercase">
+                  <span className="text-[10px] text-amber-500 dark:text-amber-400 font-semibold uppercase">
                     Required
                   </span>
                 )}
               </div>
               <textarea
                 rows={3}
-                // Constraint 1: HTML required when status is 'Resolved'
                 required={status === 'Resolved'}
                 value={adminNote}
                 onChange={(e) => setAdminNote(e.target.value)}
-                placeholder="Admin Note"
-                className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                placeholder={noteLabel}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
               />
             </div>
           </form>
 
           {/* Audit Trail Timeline */}
           <div>
-            <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
               Audit Trail
             </div>
             {ticket.auditTrail && ticket.auditTrail.length > 0 ? (
-              <div className="space-y-2 border-l-2 border-slate-700 ml-2 pl-3">
+              <div className="space-y-2 border-l-2 border-slate-200 dark:border-slate-700 ml-2 pl-3">
                 {ticket.auditTrail.map((log, i) => (
                   <div key={i} className="text-xs space-y-0.5">
-                    <div className="text-text font-semibold">{log.action}</div>
-                    <div className="text-muted">{log.details}</div>
-                    <div className="text-[10px] text-slate-500">
+                    <div className="text-slate-900 dark:text-white font-semibold">{log.action}</div>
+                    <div className="text-slate-600 dark:text-slate-400">{log.details}</div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500">
                       {new Date(log.timestamp).toLocaleString()}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-xs text-muted italic">No activity</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500 italic">No activity</div>
             )}
           </div>
         </div>
 
         {/* Footer with Action Debounced Button */}
-        <div className="p-6 border-t border-slate-700/60 bg-background/50 flex justify-end">
+        <div className="p-6 border-t border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex justify-end">
           <button
             type="submit"
             form="drawer-form"
             // Constraint 2: Action Debouncing
             disabled={saving || (status === 'Resolved' && !adminNote.trim())}
-            className="py-2.5 px-6 bg-primary hover:bg-amber-500 disabled:opacity-50 text-background font-semibold rounded-lg text-sm transition-colors"
+            className="py-2.5 px-6 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
           >
             {saving ? 'Saving...' : 'Save Update'}
           </button>

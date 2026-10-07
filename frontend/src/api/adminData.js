@@ -31,7 +31,7 @@ export const updateDepartment = async (id, deptData) => {
 };
 
 export const deleteDepartment = async (id) => {
-  const response = await api.delete(`/departments/${id}`);
+  const response = await api.delete(`/admin/departments/${id}`);
   return response.data;
 };
 
@@ -51,7 +51,7 @@ export const updateCategory = async (id, catData) => {
 };
 
 export const deleteCategory = async (id) => {
-  const response = await api.delete(`/categories/${id}`);
+  const response = await api.delete(`/admin/categories/${id}`);
   return response.data;
 };
 

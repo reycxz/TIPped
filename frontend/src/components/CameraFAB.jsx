@@ -76,7 +76,7 @@ export default function CameraFAB({ onCapture, className = '' }) {
         type="button"
         onClick={handleFabClick}
         aria-label="Camera"
-        className={`fixed z-40 p-4 rounded-full bg-primary hover:bg-amber-500 text-background shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none bottom-6 right-6 sm:bottom-8 sm:right-8 ${className}`}
+        className={`fixed z-40 p-4 rounded-full bg-primary hover:bg-amber-500 text-slate-900 shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none bottom-6 right-6 sm:bottom-8 sm:right-8 ${className}`}
       >
         <Camera className="w-6 h-6" />
       </button>
@@ -84,17 +84,17 @@ export default function CameraFAB({ onCapture, className = '' }) {
       {/* Photo Selection Preview with Check/Done Icon */}
       {previewOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-surface border border-slate-700 rounded-xl p-5 shadow-2xl relative">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-2xl relative">
             <button
               type="button"
               onClick={() => setPreviewOpen(false)}
               aria-label="Close"
-              className="absolute top-3 right-3 text-muted hover:text-text transition-colors"
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="text-sm font-semibold text-text mb-3">
+            <div className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
               Photos
             </div>
 
@@ -102,7 +102,7 @@ export default function CameraFAB({ onCapture, className = '' }) {
               {selectedPhotos.map((photo, index) => (
                 <div
                   key={index}
-                  className="aspect-square rounded-lg overflow-hidden border border-slate-700 bg-background"
+                  className="aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900"
                 >
                   <img
                     src={photo.dataUrl}
@@ -118,7 +118,7 @@ export default function CameraFAB({ onCapture, className = '' }) {
                 type="button"
                 onClick={handleConfirmAndNavigate}
                 aria-label="Confirm"
-                className="p-3 bg-primary hover:bg-amber-500 text-background rounded-full transition-colors flex items-center justify-center shadow-lg"
+                className="p-3 bg-primary hover:bg-amber-500 text-slate-900 rounded-full transition-colors flex items-center justify-center shadow-lg"
               >
                 <Check className="w-5 h-5" />
               </button>

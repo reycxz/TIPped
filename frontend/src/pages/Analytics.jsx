@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { getAnalytics, getCategories } from '../api/tickets';
-import { getDepartmentAccounts, createDepartmentAccount, updateDepartmentAccount, deleteDepartmentAccount } from '../api/auth';
+import { getDepartmentAccounts, createDepartmentAccount, updateDepartmentAccount, deleteDepartmentAccount, deleteUserAccount } from '../api/auth';
 import { Plus, Trash2, Edit2, X, AlertCircle, CheckCircle2, Shield, Users, BarChart3, Building } from 'lucide-react';
 
 export default function Analytics({ user }) {
   const [analytics, setAnalytics] = useState(null);
-  const [departments, setDepartments] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Backward compatibility alias
+  const departments = accounts;
+  const setDepartments = setAccounts;
 
   // Department Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -19,6 +24,7 @@ export default function Analytics({ user }) {
     lastName: '',
     email: '',
     password: '',
+    assignedCategories: [],
     departmentCategory: '',
   });
 
@@ -32,11 +38,8 @@ export default function Analytics({ user }) {
       ]);
 
       setAnalytics(analyticsData);
-      setDepartments(Array.isArray(deptsData) ? deptsData : []);
+      setAccounts(Array.isArray(deptsData) ? deptsData : []);
       setCategories(Array.isArray(catsData) ? catsData : []);
-      if (Array.isArray(catsData) && catsData.length > 0 && !formData.departmentCategory) {
-        setFormData((prev) => ({ ...prev, departmentCategory: catsData[0] }));
-      }
     } catch (err) {
       setError(err.response?.data?.error || 'Load failed');
     } finally {
@@ -55,6 +58,7 @@ export default function Analytics({ user }) {
       lastName: '',
       email: '',
       password: '',
+      assignedCategories: categories.length > 0 ? [categories[0]] : [],
       departmentCategory: categories[0] || 'ITSO',
     });
     setModalOpen(true);
@@ -64,12 +68,17 @@ export default function Analytics({ user }) {
 
   const openEditModal = (dept) => {
     setEditingDept(dept);
+    const existingCats = Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
+      ? dept.assignedCategories
+      : (dept.departmentCategory ? [dept.departmentCategory] : (categories.length > 0 ? [categories[0]] : []));
+
     setFormData({
       firstName: dept.firstName || '',
       lastName: dept.lastName || '',
       email: dept.email || '',
       password: '',
-      departmentCategory: dept.departmentCategory || categories[0] || 'ITSO',
+      assignedCategories: existingCats,
+      departmentCategory: existingCats[0] || categories[0] || 'ITSO',
     });
     setModalOpen(true);
     setError('');
@@ -81,22 +90,27 @@ export default function Analytics({ user }) {
     setError('');
     setSuccess('');
 
+    if (formData.assignedCategories.length === 0) {
+      setError('Please select at least one category');
+      return;
+    }
+
     try {
+      const payload = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        assignedCategories: formData.assignedCategories,
+        departmentCategory: formData.assignedCategories[0] || '',
+        password: formData.password || undefined,
+      };
+
       if (editingDept) {
-        await updateDepartmentAccount(editingDept._id, {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          departmentCategory: formData.departmentCategory,
-          password: formData.password || undefined,
-        });
+        await updateDepartmentAccount(editingDept._id, payload);
         setSuccess('Account updated');
       } else {
         await createDepartmentAccount({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
+          ...payload,
           email: formData.email,
-          password: formData.password,
-          departmentCategory: formData.departmentCategory,
         });
         setSuccess('Account created');
       }
@@ -107,16 +121,30 @@ export default function Analytics({ user }) {
     }
   };
 
-  const handleDeleteDepartment = async (id) => {
-    if (!window.confirm('Delete department account?')) return;
+  // Constraint 3: Asynchronous handleDeleteAccount with browser confirmation & instant state filtering
+  const handleDeleteAccount = async (accountId) => {
+    if (!window.confirm("Permanently delete this account from the database?")) {
+      return;
+    }
+    setError('');
+    setSuccess('');
+
     try {
-      await deleteDepartmentAccount(id);
-      setSuccess('Account deleted');
-      fetchData();
+      const token = localStorage.getItem('token');
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      
+      const response = await axios.delete(`/api/admin/users/${accountId}`, config);
+
+      if (response.status === 200) {
+        setAccounts((prev) => prev.filter((acc) => acc._id !== accountId));
+        setSuccess('Account deleted');
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Delete failed');
     }
   };
+
+  const handleDeleteDepartment = handleDeleteAccount;
 
   if (loading) {
     return (
@@ -271,13 +299,13 @@ export default function Analytics({ user }) {
           </button>
         </div>
 
-        {departments.length === 0 ? (
+        {accounts.length === 0 ? (
           <div className="p-8 text-center text-muted text-xs">
             No active accounts
           </div>
         ) : (
           <div className="divide-y divide-slate-700/40">
-            {departments.map((dept) => (
+            {accounts.map((dept) => (
               <div
                 key={dept._id}
                 className="py-3 flex items-center justify-between hover:bg-background/40 px-2 rounded-lg transition-colors"
@@ -286,8 +314,17 @@ export default function Analytics({ user }) {
                   <div className="text-xs font-bold text-text">
                     {dept.firstName} {dept.lastName}
                   </div>
-                  <div className="text-[11px] text-muted font-mono">
-                    {dept.email} • Category: <span className="text-primary">{dept.departmentCategory}</span>
+                  <div className="text-[11px] text-muted font-mono mt-0.5 flex flex-wrap items-center gap-1">
+                    <span>{dept.email} •</span>
+                    <span className="text-muted">Categories:</span>
+                    {(Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
+                      ? dept.assignedCategories
+                      : [dept.departmentCategory || 'General']
+                    ).map((c) => (
+                      <span key={c} className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold">
+                        {c}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
@@ -302,7 +339,7 @@ export default function Analytics({ user }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDeleteDepartment(dept._id)}
+                    onClick={() => handleDeleteAccount(dept._id)}
                     aria-label="Delete"
                     className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-background transition-colors"
                   >
@@ -329,7 +366,7 @@ export default function Analytics({ user }) {
             </button>
 
             <h2 className="text-base font-bold text-text mb-4">
-              {editingDept ? 'Edit Account' : 'New Account'}
+              {editingDept ? 'Edit Account' : 'Create Account'}
             </h2>
 
             <form onSubmit={handleSaveDepartment} className="space-y-4">
@@ -378,21 +415,56 @@ export default function Analytics({ user }) {
                 </div>
               )}
 
+              {/* Constraint 2: Multi-Select Categories UI */}
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
-                  Category
-                </label>
-                <select
-                  value={formData.departmentCategory}
-                  onChange={(e) => setFormData({ ...formData, departmentCategory: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text focus:outline-none focus:border-primary"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider">
+                    Categories
+                  </label>
+                  <span className="text-[11px] text-muted">
+                    {formData.assignedCategories.length} selected
+                  </span>
+                </div>
+                <div className="w-full max-h-36 overflow-y-auto bg-background border border-slate-700 rounded-lg p-2 space-y-1.5">
+                  {categories.map((cat) => {
+                    const isChecked = formData.assignedCategories.includes(cat);
+                    return (
+                      <label
+                        key={cat}
+                        className={`flex items-center space-x-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors text-xs ${
+                          isChecked ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-slate-800 text-text'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          value={cat}
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setFormData((prev) => {
+                              const current = prev.assignedCategories || [];
+                              const updated = checked
+                                ? [...current, cat]
+                                : current.filter((c) => c !== cat);
+                              return {
+                                ...prev,
+                                assignedCategories: updated,
+                                departmentCategory: updated[0] || '',
+                              };
+                            });
+                          }}
+                          className="w-3.5 h-3.5 rounded border-slate-600 text-primary focus:ring-0 focus:ring-offset-0 bg-background"
+                        />
+                        <span>{cat}</span>
+                      </label>
+                    );
+                  })}
+                  {categories.length === 0 && (
+                    <div className="text-xs text-muted text-center py-2">
+                      No categories available
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>

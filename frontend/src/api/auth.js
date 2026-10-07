@@ -72,7 +72,18 @@ export const updateDepartmentAccount = async (id, accountData) => {
 };
 
 export const deleteDepartmentAccount = async (id) => {
-  const response = await api.delete(`/departments/${id}`);
+  const token = localStorage.getItem('token');
+  const response = await axios.delete(`/api/admin/users/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return response.data;
+};
+
+export const deleteUserAccount = async (id) => {
+  const token = localStorage.getItem('token');
+  const response = await axios.delete(`/api/admin/users/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   return response.data;
 };
 

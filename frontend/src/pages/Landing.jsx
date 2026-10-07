@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import TippedLogo from '../components/TippedLogo';
+import { useLocation } from 'react-router-dom';
+import Navbar from '../components/Navbar';
 import CreateReport from './CreateReport';
 import CameraFAB from '../components/CameraFAB';
 import Login from './Login';
@@ -40,32 +40,31 @@ export default function Landing({ onLoginSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-background text-text flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white flex flex-col font-sans transition-colors duration-200">
       {/* Header */}
-      <header className="w-full border-b border-surface/50 bg-surface/50 backdrop-blur-md sticky top-0 z-30 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link
-            to="/"
-            className="landing-brand"
-            aria-label="TIPped"
-          >
-            <TippedLogo />
-          </Link>
-        </div>
-      </header>
+      <Navbar isLanding={true} />
 
       {/* Main Section - Constraint 1: Perfectly Vertically Centered on Y-Axis */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center my-auto">
           {/* Left Column: Hero Text + Constraint 2: Prominent Guest CTA Button */}
           <div className="flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-text leading-tight max-w-lg">
-              Got issues? <br className="hidden sm:inline" />
-              <span className="text-primary">TIP it.</span>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight max-w-lg">
+              <span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">S</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">e</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">e</span>
+              {' '}
+              <span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">i</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">t</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">.</span>
+              {' '}
+              <span className="inline-block cursor-default transition-all duration-75 hover:scale-[1.02] hover:brightness-150 hover:text-white hover:drop-shadow-[0_0_20px_rgba(255,255,255,0.9)]">
+                Snap it.
+              </span>{' '}
+              <br className="hidden sm:inline" />
+              <span className="text-amber-500 hover:text-amber-400 inline-block transition-all duration-300 hover:scale-110 hover:-translate-y-1 cursor-default hover:drop-shadow-lg hover:brightness-110">
+                TIP it.
+              </span>
             </h1>
 
-            <p className="text-base sm:text-lg text-muted max-w-md leading-relaxed">
-              See it. Snap it. TIP it. Report campus facilities and service issues instantly.
+            <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-md leading-relaxed">
+              Report campus facilities and service issues instantly.
             </p>
 
             {/* Constraint 2: Prominent Guest "Submit Tip" Action Button */}

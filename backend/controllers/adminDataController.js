@@ -1,5 +1,6 @@
 const Department = require('../models/Department');
 const Category = require('../models/Category');
+const User = require('../models/User');
 
 // ==========================================
 // DEPARTMENT CONTROLLER METHODS
@@ -141,20 +142,16 @@ exports.updateDepartment = async (req, res) => {
   }
 };
 
-// @desc    Delete a department
-// @route   DELETE /api/departments/:id or /api/admin-data/departments/:id
+// @desc    Delete a department (Strict Hard Delete)
+// @route   DELETE /api/admin/departments/:id or /api/departments/:id
 // @access  Private (Superadmin only)
 exports.deleteDepartment = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const department = await Department.findById(id);
+    const department = await Department.findByIdAndDelete(req.params.id);
     if (!department) {
       return res.status(404).json({ error: 'Department not found' });
     }
-
-    await Department.findByIdAndDelete(id);
-    res.json({ message: 'Department deleted successfully', department });
+    res.status(200).json({ message: 'Department deleted successfully', department });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -287,21 +284,33 @@ exports.updateCategory = async (req, res) => {
   }
 };
 
-// @desc    Delete a category
-// @route   DELETE /api/categories/:id or /api/admin-data/categories/:id
+// @desc    Delete a category (Strict Hard Delete)
+// @route   DELETE /api/admin/categories/:id or /api/categories/:id
 // @access  Private (Superadmin only)
 exports.deleteCategory = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const category = await Category.findById(id);
+    const category = await Category.findByIdAndDelete(req.params.id);
     if (!category) {
       return res.status(404).json({ error: 'Category not found' });
     }
-
-    await Category.findByIdAndDelete(id);
-    res.json({ message: 'Category deleted successfully', category });
+    res.status(200).json({ message: 'Category deleted successfully', category });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
+// @desc    Delete a user account (Strict Hard Delete)
+// @route   DELETE /api/admin/users/:id or /api/users/:id
+// @access  Private (Superadmin only)
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json({ message: 'Account deleted successfully', user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

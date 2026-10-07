@@ -68,10 +68,11 @@ exports.getMetrics = async (req, res) => {
     if (req.user && req.user.role === 'User') {
       query.$or = [{ submittedBy: req.user._id }, { reportedBy: req.user._id }];
     } else if (req.user && (req.user.role === 'Department' || req.user.role === 'Department Staff')) {
-      const dept = req.user.department || req.user.departmentCategory;
-      if (dept) {
-        query.$or = [{ assignedDepartment: dept }, { category: dept }];
-      }
+      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      req.user.assignedCategories = assigned;
+      query.issueCategory = { $in: req.user.assignedCategories };
     }
 
     const [pending, inProgress, resolved] = await Promise.all([
@@ -334,8 +335,14 @@ exports.getTickets = async (req, res) => {
   try {
     const query = {};
 
+    // Constraint 3: When a user with the 'Department' role fetches their tickets, use the $in operator to fetch all matching tickets
+    // Constraint 4: Status agnostic - returns all tickets matching the categories (Pending, In Progress, Resolved)
     if (req.user && (req.user.role === 'Department' || req.user.role === 'Department Staff')) {
-      query.assignedDepartment = req.user.department || req.user.departmentCategory;
+      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      req.user.assignedCategories = assigned;
+      query.issueCategory = { $in: req.user.assignedCategories };
     }
 
     if (req.query.campus && req.query.campus !== 'All') {
@@ -388,12 +395,28 @@ exports.updateTicket = async (req, res) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    if (req.user.role === 'Department' && (ticket.assignedDepartment || ticket.category) !== (req.user.department || req.user.departmentCategory)) {
-      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    if (req.user.role === 'Department') {
+      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
+        ? req.user.assignedCategories
+        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
+      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
+      if (!userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+        return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+      }
     }
 
     if (status === 'Resolved' && (!adminNote || !adminNote.trim())) {
       return res.status(400).json({ error: 'Admin note is required to resolve ticket' });
+    }
+
+    // Constraint 1: Dynamic Actor Identification
+    let actorPrefix = 'User';
+    if (req.user?.role === 'Superadmin') {
+      actorPrefix = 'Superadmin';
+    } else if (req.user?.role === 'Department') {
+      actorPrefix = req.user.firstName;
+    } else if (req.user?.role === 'User') {
+      actorPrefix = 'User';
     }
 
     let statusChanged = false;
@@ -402,7 +425,7 @@ exports.updateTicket = async (req, res) => {
       ticket.status = status;
       statusChanged = true;
       ticket.auditTrail.push({
-        action: 'Status Update',
+        action: `${actorPrefix} Status Update`,
         details: `Status changed to ${status}`,
         performedBy: req.user._id,
       });
@@ -411,7 +434,7 @@ exports.updateTicket = async (req, res) => {
     if (priority && priority !== ticket.priority) {
       ticket.priority = priority;
       ticket.auditTrail.push({
-        action: 'Priority Update',
+        action: `${actorPrefix} Priority Update`,
         details: `Priority changed to ${priority}`,
         performedBy: req.user._id,
       });
@@ -436,7 +459,7 @@ exports.updateTicket = async (req, res) => {
         timestamp: new Date(),
       });
       ticket.auditTrail.push({
-        action: 'Admin Note',
+        action: `${actorPrefix} Note`,
         details: adminNote.trim(),
         performedBy: req.user._id,
       });

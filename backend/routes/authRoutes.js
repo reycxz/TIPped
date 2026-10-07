@@ -20,5 +20,6 @@ router.get('/departments', verifyToken, requireRole('Superadmin'), authControlle
 router.post('/departments', verifyToken, requireRole('Superadmin'), authController.createDepartmentAccount);
 router.put('/departments/:id', verifyToken, requireRole('Superadmin'), authController.updateDepartmentAccount);
 router.delete('/departments/:id', verifyToken, requireRole('Superadmin'), authController.deleteDepartmentAccount);
+router.delete('/users/:id', verifyToken, requireRole('Superadmin'), authController.deleteDepartmentAccount);
 
 module.exports = router;

@@ -58,33 +58,33 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-surface border border-slate-700 rounded-xl p-6 shadow-2xl relative">
+      <div className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-2xl relative transition-colors duration-200">
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-4 right-4 text-muted hover:text-text transition-colors"
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <h2 className="text-lg font-bold text-text mb-4">Forgot Password</h2>
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Forgot Password</h2>
 
         {error && (
-          <div className="mb-4 p-2.5 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center">
+          <div className="mb-4 p-2.5 rounded bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 text-xs text-center">
             {error}
           </div>
         )}
 
         {message && (
-          <div className="mb-4 p-2.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs text-center font-mono">
+          <div className="mb-4 p-2.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs text-center font-mono">
             {message}
           </div>
         )}
 
         {/* Email Field with Edit Toggle */}
         <div className="mb-4">
-          <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             Email
           </label>
           <div className="flex items-center space-x-2">
@@ -94,17 +94,17 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
               disabled={!isEditingEmail}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
-              className={`w-full px-3 py-2 bg-background border rounded-lg text-sm text-text transition-colors focus:outline-none ${
+              className={`w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border rounded-lg text-sm text-slate-900 dark:text-white transition-colors focus:outline-none ${
                 isEditingEmail
                   ? 'border-primary'
-                  : 'border-slate-700 bg-background/50 cursor-not-allowed text-muted'
+                  : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50 cursor-not-allowed text-slate-500 dark:text-slate-400'
               }`}
             />
             <button
               type="button"
               onClick={() => setIsEditingEmail(!isEditingEmail)}
               aria-label="Edit"
-              className="p-2 rounded-lg bg-background border border-slate-700 hover:border-primary text-muted hover:text-primary transition-colors"
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-500 dark:text-slate-400 hover:text-primary transition-colors cursor-pointer"
             >
               <Pencil className="w-4 h-4" />
             </button>
@@ -116,14 +116,14 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
             type="button"
             disabled={loading}
             onClick={handleSendOtp}
-            className="w-full py-2.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-background font-semibold rounded-lg text-sm transition-colors mt-2"
+            className="w-full py-2.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors mt-2 cursor-pointer"
           >
             {loading ? 'Sending...' : 'Send OTP'}
           </button>
         ) : (
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 6-Digit Code
               </label>
               <input
@@ -133,12 +133,12 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 placeholder="6-Digit Code"
-                className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 New Password
               </label>
               <input
@@ -147,14 +147,14 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="New Password"
-                className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-background font-semibold rounded-lg text-sm transition-colors"
+              className="w-full py-2.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
             >
               {loading ? 'Saving...' : 'Save'}
             </button>

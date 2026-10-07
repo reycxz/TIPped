@@ -1,6 +1,17 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+
+const createEmailTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
 
 // @desc    Register a new user (Generates real OTP saved to DB)
 // @route   POST /api/auth/register
@@ -15,52 +26,59 @@ exports.register = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser && existingUser.isVerified) {
-      return res.status(400).json({ error: 'User already exists' });
+    // Database check before generating or sending the OTP
+    const existingUser = (await User.findOne({ email: req.body.email })) || (await User.findOne({ email: normalizedEmail }));
+    if (existingUser) {
+      return res.status(400).json({
+        message: 'Email already exists. Please log in.',
+        error: 'Email already exists. Please log in.'
+      });
     }
 
     // Generate secure 6-digit OTP with 10 minute expiration
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-    let user = existingUser;
-    if (user) {
-      user.firstName = firstName.trim();
-      user.lastName = lastName.trim();
-      user.program = program ? program.trim() : '';
-      user.password = password; // pre-save hook re-hashes
-      user.role = role || 'User';
-      user.departmentCategory = departmentCategory ? departmentCategory.trim() : null;
-      user.otp = otp;
-      user.otpExpires = otpExpires;
-      user.isVerified = false;
-    } else {
-      user = new User({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: normalizedEmail,
-        program: program ? program.trim() : '',
-        password,
-        role: role || 'User',
-        departmentCategory: departmentCategory ? departmentCategory.trim() : null,
-        otp,
-        otpExpires,
-        isVerified: false
-      });
-    }
+    const user = new User({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: normalizedEmail,
+      program: program ? program.trim() : '',
+      password,
+      role: role || 'User',
+      departmentCategory: departmentCategory ? departmentCategory.trim() : null,
+      otp,
+      otpExpires,
+      isVerified: false
+    });
 
     await user.save();
 
+    // Constraint 3: Send verification email using Nodemailer with strict text template
+    try {
+      const transporter = createEmailTransporter();
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+        to: normalizedEmail,
+        subject: 'TIPPED Registration - Verification Code',
+        text: `Your 6-digit verification code is: ${otp}\n\nPlease enter this code to complete your registration. This code will expire in 10 minutes.`,
+      });
+      console.log(`[Nodemailer] Registration OTP sent to ${normalizedEmail}`);
+    } catch (emailErr) {
+      console.error('[Nodemailer Error]: Failed to send registration OTP email:', emailErr.message);
+    }
+
+    // Constraint 2: Do NOT return raw OTP in JSON response
     res.status(201).json({
       message: 'OTP sent',
-      otp,
       email: normalizedEmail
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({
+        message: 'Email already exists. Please log in.',
+        error: 'Email already exists. Please log in.'
+      });
     }
     res.status(500).json({ error: error.message });
   }
@@ -290,9 +308,20 @@ exports.getDepartmentAccounts = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.createDepartmentAccount = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, departmentCategory } = req.body;
-    if (!email || !password || !departmentCategory) {
-      return res.status(400).json({ error: 'Missing fields' });
+    const { firstName, lastName, email, password, assignedCategories, departmentCategory } = req.body;
+    
+    // Extract categories array from assignedCategories, categories, or single departmentCategory
+    let categories = [];
+    if (Array.isArray(assignedCategories) && assignedCategories.length > 0) {
+      categories = assignedCategories;
+    } else if (Array.isArray(req.body.categories) && req.body.categories.length > 0) {
+      categories = req.body.categories;
+    } else if (departmentCategory) {
+      categories = [departmentCategory.trim()];
+    }
+
+    if (!email || !password || categories.length === 0) {
+      return res.status(400).json({ error: 'Missing fields: email, password, and at least one category are required' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -301,13 +330,16 @@ exports.createDepartmentAccount = async (req, res) => {
       return res.status(400).json({ error: 'User already exists' });
     }
 
+    const primaryCategory = categories[0] || 'General';
+
     const user = new User({
-      firstName: firstName ? firstName.trim() : departmentCategory.trim(),
+      firstName: firstName ? firstName.trim() : primaryCategory,
       lastName: lastName ? lastName.trim() : 'Staff',
       email: normalizedEmail,
       password,
       role: 'Department',
-      departmentCategory: departmentCategory.trim(),
+      assignedCategories: categories,
+      departmentCategory: primaryCategory,
       isVerified: true
     });
 
@@ -326,7 +358,7 @@ exports.createDepartmentAccount = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.updateDepartmentAccount = async (req, res) => {
   try {
-    const { firstName, lastName, departmentCategory, password } = req.body;
+    const { firstName, lastName, assignedCategories, departmentCategory, password } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -334,7 +366,23 @@ exports.updateDepartmentAccount = async (req, res) => {
 
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
-    if (departmentCategory) user.departmentCategory = departmentCategory.trim();
+
+    if (assignedCategories || req.body.categories || departmentCategory) {
+      let categories = [];
+      if (Array.isArray(assignedCategories) && assignedCategories.length > 0) {
+        categories = assignedCategories;
+      } else if (Array.isArray(req.body.categories) && req.body.categories.length > 0) {
+        categories = req.body.categories;
+      } else if (departmentCategory) {
+        categories = [departmentCategory.trim()];
+      }
+
+      if (categories.length > 0) {
+        user.assignedCategories = categories;
+        user.departmentCategory = categories[0];
+      }
+    }
+
     if (password) user.password = password; // pre-save hook hashes
 
     await user.save();
@@ -348,7 +396,7 @@ exports.updateDepartmentAccount = async (req, res) => {
 };
 
 // @desc    Delete/Destroy department account (Superadmin only)
-// @route   DELETE /api/auth/departments/:id
+// @route   DELETE /api/users/:id or /api/admin/users/:id or /api/auth/departments/:id
 // @access  Private (Superadmin only)
 exports.deleteDepartmentAccount = async (req, res) => {
   try {
@@ -356,10 +404,12 @@ exports.deleteDepartmentAccount = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ message: 'Account deleted' });
+    res.status(200).json({ message: 'Account deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.deleteUser = exports.deleteDepartmentAccount;
 
 

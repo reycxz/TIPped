@@ -17,6 +17,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
@@ -29,6 +31,12 @@ app.get('/api/health', (req, res) => {
 
 // Authentication Routes
 app.use('/api/auth', authRoutes);
+
+// Admin Management Routes (Strict Hard Delete endpoints)
+app.use('/api/admin', adminRoutes);
+
+// User Management Routes
+app.use('/api/users', userRoutes);
 
 // Ticket Routes
 app.use('/api/tickets', ticketRoutes);
