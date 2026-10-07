@@ -7,3 +7,4 @@ backend/.env
 frontend/.env
 RULES.md
 TIPPED.md
+ARCHITECTURE.md

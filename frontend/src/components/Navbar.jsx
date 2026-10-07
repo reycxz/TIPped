@@ -44,7 +44,10 @@ export default function Navbar({ userRole = 'User', onLogout }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Brand Logo & Navigation Links */}
         <div className="flex items-center space-x-8">
-          <Link to="/" className="text-xl font-bold tracking-tight text-primary">
+          <Link
+            to={userRole === 'User' ? '/dashboard' : '/admin'}
+            className="text-xl font-bold tracking-tight text-primary"
+          >
             TIPped
           </Link>
 

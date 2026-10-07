@@ -18,6 +18,9 @@ app.use(express.urlencoded({ extended: true }));
 
 const authRoutes = require('./routes/authRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
+const departmentRoutes = require('./routes/departmentRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const adminDataRoutes = require('./routes/adminDataRoutes');
 
 // Basic Health Check Route
 app.get('/api/health', (req, res) => {
@@ -29,6 +32,11 @@ app.use('/api/auth', authRoutes);
 
 // Ticket Routes
 app.use('/api/tickets', ticketRoutes);
+
+// Admin Data Routes (Departments & Categories)
+app.use('/api/departments', departmentRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/admin-data', adminDataRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {

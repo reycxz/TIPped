@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Check, X } from 'lucide-react';
 
-export default function CameraFAB() {
+export default function CameraFAB({ onCapture, className = '' }) {
   const fileInputRef = useRef(null);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -48,11 +48,15 @@ export default function CameraFAB() {
 
   const handleConfirmAndNavigate = () => {
     setPreviewOpen(false);
-    navigate('/report/new', {
-      state: {
-        preloadedPhotos: selectedPhotos,
-      },
-    });
+    if (onCapture) {
+      onCapture(selectedPhotos);
+    } else {
+      navigate('/report/new', {
+        state: {
+          preloadedPhotos: selectedPhotos,
+        },
+      });
+    }
   };
 
   return (
@@ -72,7 +76,7 @@ export default function CameraFAB() {
         type="button"
         onClick={handleFabClick}
         aria-label="Camera"
-        className="fixed z-40 p-4 rounded-full bg-primary hover:bg-amber-500 text-background shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none bottom-6 left-1/2 -translate-x-1/2 md:bottom-8 md:right-8 md:left-auto md:translate-x-0"
+        className={`fixed z-40 p-4 rounded-full bg-primary hover:bg-amber-500 text-background shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none bottom-6 right-6 sm:bottom-8 sm:right-8 ${className}`}
       >
         <Camera className="w-6 h-6" />
       </button>

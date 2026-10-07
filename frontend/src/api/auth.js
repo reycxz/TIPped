@@ -51,4 +51,29 @@ export const changePassword = async (currentPassword, newPassword) => {
   return response.data;
 };
 
+export const verifyRegistrationOtp = async (email, otp) => {
+  const response = await api.post('/verify-otp', { email, otp });
+  return response.data;
+};
+
+export const getDepartmentAccounts = async () => {
+  const response = await api.get('/departments');
+  return response.data;
+};
+
+export const createDepartmentAccount = async (accountData) => {
+  const response = await api.post('/departments', accountData);
+  return response.data;
+};
+
+export const updateDepartmentAccount = async (id, accountData) => {
+  const response = await api.put(`/departments/${id}`, accountData);
+  return response.data;
+};
+
+export const deleteDepartmentAccount = async (id) => {
+  const response = await api.delete(`/departments/${id}`);
+  return response.data;
+};
+
 export default api;

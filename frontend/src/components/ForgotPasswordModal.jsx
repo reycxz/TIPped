@@ -124,7 +124,7 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
-                Code
+                6-Digit Code
               </label>
               <input
                 type="text"
@@ -132,7 +132,7 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
                 maxLength={6}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                placeholder="Code"
+                placeholder="6-Digit Code"
                 className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary"
               />
             </div>

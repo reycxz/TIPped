@@ -1,7 +1,61 @@
 const Ticket = require('../models/Ticket');
+const Department = require('../models/Department');
+const Category = require('../models/Category');
+const User = require('../models/User');
 const { generateTicketId } = require('../utils/ticketIdGenerator');
 const { sendStatusUpdateEmail } = require('../utils/emailService');
 const { streamUpload, uploadDirect } = require('../config/cloudinary');
+
+const DEFAULT_CATEGORIES = [
+  'ITSO',
+  'Maintenance',
+  'SOHAS',
+  'Canteen',
+  'OSA',
+  'Guidance',
+];
+
+// Helper to process images from multer files or body data
+const extractImageUrls = async (req) => {
+  const imageUrls = [];
+
+  if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    for (const file of req.files) {
+      if (file.buffer) {
+        const result = await streamUpload(file.buffer);
+        if (result && result.secure_url) {
+          imageUrls.push(result.secure_url);
+        }
+      }
+    }
+  }
+
+  let bodyImages = req.body.images;
+  if (typeof bodyImages === 'string') {
+    try {
+      bodyImages = JSON.parse(bodyImages);
+    } catch (e) {
+      bodyImages = [bodyImages];
+    }
+  }
+
+  if (Array.isArray(bodyImages) && bodyImages.length > 0) {
+    for (const img of bodyImages) {
+      if (typeof img === 'string') {
+        if (img.startsWith('http://') || img.startsWith('https://')) {
+          imageUrls.push(img);
+        } else if (img.startsWith('data:image/') || img.length > 100) {
+          const result = await uploadDirect(img);
+          if (result && result.secure_url) {
+            imageUrls.push(result.secure_url);
+          }
+        }
+      }
+    }
+  }
+
+  return imageUrls;
+};
 
 // @desc    Get dynamic KPI metrics
 // @route   GET /api/tickets/metrics
@@ -12,9 +66,12 @@ exports.getMetrics = async (req, res) => {
     
     // Role-based metric scoping
     if (req.user && req.user.role === 'User') {
-      query.submittedBy = req.user._id;
-    } else if (req.user && req.user.role === 'Department' && req.user.departmentCategory) {
-      query.category = req.user.departmentCategory;
+      query.$or = [{ submittedBy: req.user._id }, { reportedBy: req.user._id }];
+    } else if (req.user && (req.user.role === 'Department' || req.user.role === 'Department Staff')) {
+      const dept = req.user.department || req.user.departmentCategory;
+      if (dept) {
+        query.$or = [{ assignedDepartment: dept }, { category: dept }];
+      }
     }
 
     const [pending, inProgress, resolved] = await Promise.all([
@@ -33,30 +90,65 @@ exports.getMetrics = async (req, res) => {
   }
 };
 
-// @desc    Get user tickets
+// @desc    Get user tickets with Smart Search and combined filters
 // @route   GET /api/tickets/my-tickets
 // @access  Private
 exports.getMyTickets = async (req, res) => {
   try {
-    const tickets = await Ticket.find({ submittedBy: req.user._id }).sort({ createdAt: -1 });
+    const query = {
+      $or: [{ submittedBy: req.user._id }, { reportedBy: req.user._id }]
+    };
+
+    if (req.query.status && req.query.status !== 'All') {
+      query.status = req.query.status;
+    }
+
+    if (req.query.category && req.query.category !== 'All') {
+      query.$or = [
+        { assignedDepartment: req.query.category },
+        { issueCategory: req.query.category },
+        { category: req.query.category }
+      ];
+    }
+
+    if (req.query.search && req.query.search.trim()) {
+      const regex = new RegExp(req.query.search.trim(), 'i');
+      query.$and = [
+        {
+          $or: [
+            { ticketId: regex },
+            { 'locationInfo.room': regex },
+            { 'locationInfo.building': regex },
+            { 'locationInfo.landmark': regex },
+            { campus: regex },
+            { issueCategory: regex },
+            { assignedDepartment: regex },
+            { category: regex },
+            { description: regex },
+          ]
+        }
+      ];
+    }
+
+    const tickets = await Ticket.find(query).sort({ createdAt: -1 });
     res.json(tickets);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// @desc    Create a new ticket report
+// @desc    Create a new ticket report (Authenticated)
 // @route   POST /api/tickets
 // @access  Private
 exports.createTicket = async (req, res) => {
   try {
-    const { campus, building, floor, room, landmark, category, description } = req.body;
+    const { campus, building, floor, room, landmark, issueCategory, category, description } = req.body;
+    const selectedCategory = (issueCategory || category || '').trim();
 
-    if (!campus || !building || floor === undefined || !room || !category || !description) {
+    if (!campus || !building || floor === undefined || !room || !selectedCategory || !description) {
       return res.status(400).json({ error: 'Missing fields' });
     }
 
-    // Constraint 1: Building validation based on campus
     if (campus === 'Arlegui' && building !== 'Arlegui (A)') {
       return res.status(400).json({ error: 'Invalid building' });
     }
@@ -65,65 +157,43 @@ exports.createTicket = async (req, res) => {
       return res.status(400).json({ error: 'Invalid building' });
     }
 
-    // Constraint 2: Room first digit validation against floor
     const firstDigitMatch = String(room).match(/\d/);
     if (!firstDigitMatch || firstDigitMatch[0] !== String(floor)) {
       return res.status(400).json({ error: 'Floor mismatch' });
     }
 
-    // Constraint 1 & 2 (Cloudinary): Stream images directly to Cloudinary, never store base64 in MongoDB
-    const imageUrls = [];
+    // Dynamic department and prefix resolution from database
+    let assignedDepartment = 'General';
+    let prefix = 'GEN';
 
-    // 1. Process files uploaded via Multer (streamed directly to Cloudinary)
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      for (const file of req.files) {
-        if (file.buffer) {
-          const result = await streamUpload(file.buffer);
-          if (result && result.secure_url) {
-            imageUrls.push(result.secure_url);
-          }
-        }
+    const categoryDoc = await Category.findOne({ issueName: req.body.issueCategory || selectedCategory });
+    if (categoryDoc) {
+      assignedDepartment = categoryDoc.departmentName;
+      const departmentDoc = await Department.findOne({ name: assignedDepartment });
+      if (departmentDoc && departmentDoc.prefix) {
+        prefix = departmentDoc.prefix;
+      }
+    } else {
+      // Direct Department fallback
+      const departmentDoc = await Department.findOne({ name: req.body.issueCategory || selectedCategory });
+      if (departmentDoc) {
+        assignedDepartment = departmentDoc.name;
+        prefix = departmentDoc.prefix;
       }
     }
 
-    // 2. Process image strings if provided in req.body (e.g. from JSON payloads)
-    let bodyImages = req.body.images;
-    if (typeof bodyImages === 'string') {
-      try {
-        bodyImages = JSON.parse(bodyImages);
-      } catch (e) {
-        bodyImages = [bodyImages];
-      }
-    }
+    const imageUrls = await extractImageUrls(req);
 
-    if (Array.isArray(bodyImages) && bodyImages.length > 0) {
-      for (const img of bodyImages) {
-        if (typeof img === 'string') {
-          if (img.startsWith('http://') || img.startsWith('https://')) {
-            imageUrls.push(img);
-          } else if (img.startsWith('data:image/') || img.length > 100) {
-            // Upload to Cloudinary and store only secure_url - never save base64 to MongoDB
-            const result = await uploadDirect(img);
-            if (result && result.secure_url) {
-              imageUrls.push(result.secure_url);
-            }
-          }
-        }
-      }
-    }
-
-    // Constraint 3: Generate hash-based Ticket ID [CAMPUS]-[DEPT][MMDD][5-CHAR-HASH]
     let ticketId;
     let isUnique = false;
     while (!isUnique) {
-      ticketId = generateTicketId(campus, category);
+      ticketId = generateTicketId(campus, prefix);
       const existing = await Ticket.findOne({ ticketId });
       if (!existing) {
         isUnique = true;
       }
     }
 
-    // Default status strictly 'Pending', adminRemarks strictly []
     const ticket = new Ticket({
       ticketId,
       campus,
@@ -133,12 +203,117 @@ exports.createTicket = async (req, res) => {
         room: room.trim(),
         landmark: landmark ? landmark.trim() : ''
       },
-      category: category.trim(),
+      issueCategory: selectedCategory,
+      assignedDepartment,
       description: description.trim(),
       images: imageUrls,
       status: 'Pending',
       adminRemarks: [],
-      submittedBy: req.user ? req.user._id : null
+      submittedBy: req.user ? req.user._id : null,
+      reportedBy: req.user ? req.user._id : null,
+      auditTrail: [
+        {
+          action: 'Created',
+          details: 'Report created',
+          performedBy: req.user ? req.user._id : null,
+          timestamp: new Date()
+        }
+      ]
+    });
+
+    await ticket.save();
+
+    res.status(201).json({
+      message: 'Report submitted',
+      ticket
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Create a new guest ticket report (Unauthenticated)
+// @route   POST /api/tickets/guest
+// @access  Public
+exports.createGuestTicket = async (req, res) => {
+  try {
+    const { campus, building, floor, room, landmark, issueCategory, category, description, guestEmail } = req.body;
+    const selectedCategory = (issueCategory || category || '').trim();
+
+    if (!campus || !building || floor === undefined || !room || !selectedCategory || !description) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    if (campus === 'Arlegui' && building !== 'Arlegui (A)') {
+      return res.status(400).json({ error: 'Invalid building' });
+    }
+    const casalBuildings = ["Founder's (F)", "Building 2 (C)", "PC 5", "PC 12", "PE Center"];
+    if (campus === 'Casal' && !casalBuildings.includes(building)) {
+      return res.status(400).json({ error: 'Invalid building' });
+    }
+
+    const firstDigitMatch = String(room).match(/\d/);
+    if (!firstDigitMatch || firstDigitMatch[0] !== String(floor)) {
+      return res.status(400).json({ error: 'Floor mismatch' });
+    }
+
+    // Dynamic department and prefix resolution from database
+    let assignedDepartment = 'General';
+    let prefix = 'GEN';
+
+    const categoryDoc = await Category.findOne({ issueName: req.body.issueCategory || selectedCategory });
+    if (categoryDoc) {
+      assignedDepartment = categoryDoc.departmentName;
+      const departmentDoc = await Department.findOne({ name: assignedDepartment });
+      if (departmentDoc && departmentDoc.prefix) {
+        prefix = departmentDoc.prefix;
+      }
+    } else {
+      // Direct Department fallback
+      const departmentDoc = await Department.findOne({ name: req.body.issueCategory || selectedCategory });
+      if (departmentDoc) {
+        assignedDepartment = departmentDoc.name;
+        prefix = departmentDoc.prefix;
+      }
+    }
+
+    const imageUrls = await extractImageUrls(req);
+
+    let ticketId;
+    let isUnique = false;
+    while (!isUnique) {
+      ticketId = generateTicketId(campus, prefix);
+      const existing = await Ticket.findOne({ ticketId });
+      if (!existing) {
+        isUnique = true;
+      }
+    }
+
+    const ticket = new Ticket({
+      ticketId,
+      campus,
+      locationInfo: {
+        building,
+        floor: Number(floor),
+        room: room.trim(),
+        landmark: landmark ? landmark.trim() : ''
+      },
+      issueCategory: selectedCategory,
+      assignedDepartment,
+      description: description.trim(),
+      images: imageUrls,
+      status: 'Pending',
+      adminRemarks: [],
+      submittedBy: null,
+      reportedBy: null,
+      guestEmail: guestEmail ? guestEmail.trim().toLowerCase() : null,
+      auditTrail: [
+        {
+          action: 'Created',
+          details: 'Guest report submitted',
+          timestamp: new Date()
+        }
+      ]
     });
 
     await ticket.save();
@@ -153,34 +328,43 @@ exports.createTicket = async (req, res) => {
 };
 
 // @desc    Get admin tickets with RBAC scoping & filters
-// @route   GET /api/tickets/admin
+// @route   GET /api/tickets & GET /api/tickets/admin
 // @access  Private (Department & Superadmin only)
-exports.getAdminTickets = async (req, res) => {
+exports.getTickets = async (req, res) => {
   try {
     const query = {};
 
-    // Constraint 3 (RBAC): Department Staff only fetch tickets matching their department category
-    if (req.user.role === 'Department') {
-      if (!req.user.departmentCategory) {
-        return res.json([]);
-      }
-      query.category = req.user.departmentCategory;
+    if (req.user && (req.user.role === 'Department' || req.user.role === 'Department Staff')) {
+      query.assignedDepartment = req.user.department || req.user.departmentCategory;
     }
-    // Superadmin fetches all departments
 
-    // Filter by campus
     if (req.query.campus && req.query.campus !== 'All') {
       query.campus = req.query.campus;
     }
 
-    // Filter by status
     if (req.query.status && req.query.status !== 'All') {
       query.status = req.query.status;
     }
 
-    // Search by Ticket ID
+    if (req.query.category && req.query.category !== 'All') {
+      query.$or = [
+        { assignedDepartment: req.query.category },
+        { issueCategory: req.query.category }
+      ];
+    }
+
     if (req.query.search && req.query.search.trim()) {
-      query.ticketId = { $regex: req.query.search.trim(), $options: 'i' };
+      const regex = new RegExp(req.query.search.trim(), 'i');
+      query.$or = [
+        { ticketId: regex },
+        { 'locationInfo.room': regex },
+        { 'locationInfo.building': regex },
+        { 'locationInfo.landmark': regex },
+        { campus: regex },
+        { issueCategory: regex },
+        { assignedDepartment: regex },
+        { description: regex },
+      ];
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
@@ -190,6 +374,8 @@ exports.getAdminTickets = async (req, res) => {
   }
 };
 
+exports.getAdminTickets = exports.getTickets;
+
 // @desc    Update ticket status, priority, category, or add admin remarks
 // @route   PUT /api/tickets/:id
 // @access  Private (Department & Superadmin only)
@@ -197,17 +383,15 @@ exports.updateTicket = async (req, res) => {
   try {
     const { status, priority, category, adminNote } = req.body;
 
-    const ticket = await Ticket.findById(req.params.id).populate('submittedBy');
+    const ticket = await Ticket.findById(req.params.id).populate('submittedBy').populate('reportedBy');
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    // RBAC check for Department Staff
-    if (req.user.role === 'Department' && ticket.category !== req.user.departmentCategory) {
+    if (req.user.role === 'Department' && (ticket.assignedDepartment || ticket.category) !== (req.user.department || req.user.departmentCategory)) {
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
 
-    // Constraint 1: If Admin changes status to 'Resolved', the Admin Note becomes required
     if (status === 'Resolved' && (!adminNote || !adminNote.trim())) {
       return res.status(400).json({ error: 'Admin note is required to resolve ticket' });
     }
@@ -233,12 +417,12 @@ exports.updateTicket = async (req, res) => {
       });
     }
 
-    // Silent Department Transfers: appends silent log to auditTrail without emailing user
-    if (category && category !== ticket.category) {
-      ticket.category = category;
+    const deptToUpdate = req.body.assignedDepartment || category;
+    if (deptToUpdate && deptToUpdate !== (ticket.assignedDepartment || ticket.category)) {
+      ticket.assignedDepartment = deptToUpdate;
       ticket.auditTrail.push({
         action: 'Department Re-assignment',
-        details: `Re-assigned to ${category}`,
+        details: `Re-assigned to ${deptToUpdate}`,
         performedBy: req.user._id,
       });
     }
@@ -260,18 +444,19 @@ exports.updateTicket = async (req, res) => {
 
     await ticket.save();
 
-    // Constraint 3: Dispatch formal plain text email via Nodemailer if status changed or note submitted
-    if ((statusChanged || noteAdded) && ticket.submittedBy?.email) {
-      const formattedTimestamp = new Date().toLocaleString();
+    // Formal text-only notification sent ONLY if status changed or admin note submitted
+    const recipientEmail = ticket.submittedBy?.email || ticket.reportedBy?.email || ticket.guestEmail;
+    if ((statusChanged || noteAdded) && recipientEmail) {
+      const formattedTimestamp = new Date(ticket.createdAt).toLocaleString();
       await sendStatusUpdateEmail({
-        to: ticket.submittedBy.email,
+        to: recipientEmail,
         ticketId: ticket.ticketId,
         timestamp: formattedTimestamp,
         campus: ticket.campus,
         room: ticket.locationInfo?.room || '',
-        category: ticket.category,
+        category: ticket.issueCategory || ticket.assignedDepartment || ticket.category || 'General',
         newStatus: ticket.status,
-        adminNote: adminNote ? adminNote.trim() : '',
+        adminNote: adminNote ? adminNote.trim() : 'None',
       });
     }
 
@@ -283,6 +468,72 @@ exports.updateTicket = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// @desc    Get active categories
+// @route   GET /api/tickets/categories
+// @access  Public
+exports.getCategories = async (req, res) => {
+  try {
+    const categories = await Category.find().select('issueName');
+    if (categories && categories.length > 0) {
+      return res.json(categories.map(c => c.issueName));
+    }
+    res.json(DEFAULT_CATEGORIES);
+  } catch (error) {
+    res.json(DEFAULT_CATEGORIES);
+  }
+};
+
+// @desc    Get Superadmin analytics based on real backend data
+// @route   GET /api/tickets/analytics
+// @access  Private (Superadmin only)
+exports.getAnalytics = async (req, res) => {
+  try {
+    const [
+      totalTickets,
+      pendingCount,
+      inProgressCount,
+      resolvedCount,
+      arleguiCount,
+      casalCount,
+      totalUsers,
+      totalDeptStaff,
+      allTickets
+    ] = await Promise.all([
+      Ticket.countDocuments(),
+      Ticket.countDocuments({ status: 'Pending' }),
+      Ticket.countDocuments({ status: 'In Progress' }),
+      Ticket.countDocuments({ status: 'Resolved' }),
+      Ticket.countDocuments({ campus: 'Arlegui' }),
+      Ticket.countDocuments({ campus: 'Casal' }),
+      User.countDocuments({ role: 'User' }),
+      User.countDocuments({ role: 'Department' }),
+      Ticket.find().select('category issueCategory assignedDepartment status campus createdAt').sort({ createdAt: -1 })
+    ]);
+
+    // Calculate category breakdown dynamically
+    const categoryCounts = {};
+    allTickets.forEach(t => {
+      const cat = t.assignedDepartment || t.issueCategory || t.category || 'Other';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    });
+
+    res.json({
+      totalTickets,
+      pendingCount,
+      inProgressCount,
+      resolvedCount,
+      arleguiCount,
+      casalCount,
+      totalUsers,
+      totalDeptStaff,
+      categoryCounts
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 
 

@@ -65,9 +65,14 @@ const ticketSchema = new mongoose.Schema(
       type: locationInfoSchema,
       required: [true, 'Location info is required']
     },
-    category: {
+    issueCategory: {
       type: String,
-      required: [true, 'Category is required'],
+      required: [true, 'Issue category is required'],
+      trim: true
+    },
+    assignedDepartment: {
+      type: String,
+      required: [true, 'Assigned department is required'],
       trim: true
     },
     description: {
@@ -108,11 +113,23 @@ const ticketSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null
+    },
+    reportedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    guestEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null
     }
   },
   {
     timestamps: true
   }
+
 );
 
 const Ticket = mongoose.model('Ticket', ticketSchema);

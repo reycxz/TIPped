@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { updateTicket } from '../api/tickets';
+import { updateTicket, getCategories } from '../api/tickets';
 import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
 
-const DEPARTMENTS = [
-  'ITSO',
+const DEFAULT_DEPARTMENTS = [
   'Maintenance',
+  'ITSO',
   'SOHAS',
   'Canteen',
   'OSA',
   'Guidance',
+  'General',
 ];
 
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
@@ -17,17 +18,24 @@ const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess }) {
   const [status, setStatus] = useState('Pending');
   const [priority, setPriority] = useState('Medium');
-  const [category, setCategory] = useState('');
+  const [assignedDepartment, setAssignedDepartment] = useState('General');
+  const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [adminNote, setAdminNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [zoomedImage, setZoomedImage] = useState(null);
 
   useEffect(() => {
+    getCategories().then((cats) => {
+      if (Array.isArray(cats) && cats.length > 0) setDepartments(cats);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (ticket) {
       setStatus(ticket.status || 'Pending');
       setPriority(ticket.priority || 'Medium');
-      setCategory(ticket.category || '');
+      setAssignedDepartment(ticket.assignedDepartment || ticket.category || 'General');
       setAdminNote('');
       setError('');
       setSaving(false);
@@ -53,7 +61,8 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
       const payload = {
         status,
         priority,
-        category,
+        assignedDepartment,
+        category: assignedDepartment,
         adminNote: adminNote.trim(),
       };
 
@@ -91,6 +100,10 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
               <span className="flex items-center">
                 <MapPin className="w-3.5 h-3.5 mr-1" />
                 {ticket.campus} - {ticket.locationInfo?.room}
+              </span>
+              <span className="flex items-center text-primary font-medium">
+                <Tag className="w-3.5 h-3.5 mr-1" />
+                {ticket.issueCategory || ticket.category}
               </span>
             </div>
           </div>
@@ -158,11 +171,11 @@ export default function TicketDrawer({ ticket, isOpen, onClose, onUpdateSuccess 
                   Department
                 </label>
                 <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  value={assignedDepartment}
+                  onChange={(e) => setAssignedDepartment(e.target.value)}
                   className="w-full px-2.5 py-2 bg-background border border-slate-700 rounded-lg text-xs text-text focus:outline-none focus:border-primary"
                 >
-                  {DEPARTMENTS.map((dept) => (
+                  {departments.map((dept) => (
                     <option key={dept} value={dept}>
                       {dept}
                     </option>

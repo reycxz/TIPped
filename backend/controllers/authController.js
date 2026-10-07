@@ -2,7 +2,7 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-// @desc    Register a new user
+// @desc    Register a new user (Generates real OTP saved to DB)
 // @route   POST /api/auth/register
 // @access  Public
 exports.register = async (req, res) => {
@@ -17,38 +17,95 @@ exports.register = async (req, res) => {
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
+    if (existingUser && existingUser.isVerified) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Create new user document
-    const user = new User({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: normalizedEmail,
-      program: program ? program.trim() : '',
-      password,
-      role: role || 'User',
-      departmentCategory: departmentCategory ? departmentCategory.trim() : null
-    });
+    // Generate secure 6-digit OTP with 10 minute expiration
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    let user = existingUser;
+    if (user) {
+      user.firstName = firstName.trim();
+      user.lastName = lastName.trim();
+      user.program = program ? program.trim() : '';
+      user.password = password; // pre-save hook re-hashes
+      user.role = role || 'User';
+      user.departmentCategory = departmentCategory ? departmentCategory.trim() : null;
+      user.otp = otp;
+      user.otpExpires = otpExpires;
+      user.isVerified = false;
+    } else {
+      user = new User({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: normalizedEmail,
+        program: program ? program.trim() : '',
+        password,
+        role: role || 'User',
+        departmentCategory: departmentCategory ? departmentCategory.trim() : null,
+        otp,
+        otpExpires,
+        isVerified: false
+      });
+    }
 
     await user.save();
 
-    // Issue JWT expiring in 1d
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-
-    const userObj = user.toObject();
-    delete userObj.password;
-
     res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: userObj
+      message: 'OTP sent',
+      otp,
+      email: normalizedEmail
     });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ error: 'User already exists' });
     }
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Verify registration OTP and issue JWT
+// @route   POST /api/auth/verify-otp
+// @access  Public
+exports.verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.otp || user.otp !== otp.trim()) {
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    if (!user.otpExpires || user.otpExpires < new Date()) {
+      return res.status(400).json({ error: 'OTP expired' });
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    user.otpExpires = null;
+    await user.save();
+
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    res.json({
+      message: 'Verified',
+      token,
+      user: userObj
+    });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
@@ -215,4 +272,94 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// @desc    Get all department accounts (Superadmin only)
+// @route   GET /api/auth/departments
+// @access  Private (Superadmin only)
+exports.getDepartmentAccounts = async (req, res) => {
+  try {
+    const accounts = await User.find({ role: 'Department' }).select('-password').sort({ createdAt: -1 });
+    res.json(accounts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Create department account (Superadmin only)
+// @route   POST /api/auth/departments
+// @access  Private (Superadmin only)
+exports.createDepartmentAccount = async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, departmentCategory } = req.body;
+    if (!email || !password || !departmentCategory) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    const user = new User({
+      firstName: firstName ? firstName.trim() : departmentCategory.trim(),
+      lastName: lastName ? lastName.trim() : 'Staff',
+      email: normalizedEmail,
+      password,
+      role: 'Department',
+      departmentCategory: departmentCategory.trim(),
+      isVerified: true
+    });
+
+    await user.save();
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    res.status(201).json({ message: 'Account created', user: userObj });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Update department account (Superadmin only)
+// @route   PUT /api/auth/departments/:id
+// @access  Private (Superadmin only)
+exports.updateDepartmentAccount = async (req, res) => {
+  try {
+    const { firstName, lastName, departmentCategory, password } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (firstName) user.firstName = firstName.trim();
+    if (lastName) user.lastName = lastName.trim();
+    if (departmentCategory) user.departmentCategory = departmentCategory.trim();
+    if (password) user.password = password; // pre-save hook hashes
+
+    await user.save();
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    res.json({ message: 'Account updated', user: userObj });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Delete/Destroy department account (Superadmin only)
+// @route   DELETE /api/auth/departments/:id
+// @access  Private (Superadmin only)
+exports.deleteDepartmentAccount = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ message: 'Account deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 

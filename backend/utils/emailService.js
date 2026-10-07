@@ -32,9 +32,10 @@ exports.sendStatusUpdateEmail = async ({
   try {
     const transporter = createTransporter();
 
-    // Strictly formal, plain text only - no HTML fluff, no emojis
-    const textContent = `Ticket: ${ticketId} Date: ${timestamp} Location: ${campus} - ${room} Concern: ${category}
-Status Update: ${newStatus} Admin Remarks: ${adminNote || 'None'}
+    // Strictly formal, plain text only - standardized template from specification
+    const textContent = `Ticket: ${ticketId} | Date: ${timestamp} | Location: ${campus} - ${room} | Concern: ${category}
+Status Update: ${newStatus}
+Admin Remarks: ${adminNote || 'None'}
 This is an automated system message. Do not reply.`;
 
     const info = await transporter.sendMail({

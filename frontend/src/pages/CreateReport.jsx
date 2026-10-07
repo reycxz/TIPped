@@ -1,25 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { createTicket } from '../api/tickets';
-import { Upload, X, AlertCircle } from 'lucide-react';
+import axios from 'axios';
+import { createTicket, createGuestTicket } from '../api/tickets';
+import { Upload, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const CAMPUS_BUILDINGS = {
-  Arlegui: ['Arlegui (A)'],
-  Casal: ["Founder's (F)", 'Building 2 (C)', 'PC 5', 'PC 12', 'PE Center'],
+const campusConfig = {
+  Arlegui: {
+    "Arlegui (A)": { prefix: "A", maxFloor: 6 }
+  },
+  Casal: {
+    "Founder's (F)": { prefix: "F", maxFloor: 6 },
+    "Building 2 (C)": { prefix: "C", maxFloor: 3 },
+    "PC 5": { prefix: "PC5", maxFloor: 1 },
+    "PC 12": { prefix: "PC12", maxFloor: 2 },
+    "PE Center": { prefix: "PE", maxFloor: 1 }
+  }
 };
 
-const CATEGORIES = [
-  'ITSO',
-  'Maintenance',
-  'SOHAS',
-  'Canteen',
-  'OSA',
-  'Guidance',
-];
-
-export default function CreateReport() {
+export default function CreateReport({
+  isGuest = false,
+  onSuccess,
+  onCancel,
+  onClose,
+  initialPhotos = []
+}) {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Constraint 3: Safe return logic for guest and authenticated navigation
+  const handleCancel = () => {
+    // If conditionally rendered on the root '/' page with a close/cancel callback
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+    if (onClose) {
+      onClose();
+      return;
+    }
+
+    // If rendered via a route (like /report/new)
+    const token = localStorage.getItem('token');
+    if (isGuest || !token) {
+      navigate('/');
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   // Form states
   const [campus, setCampus] = useState('Arlegui');
@@ -27,24 +54,85 @@ export default function CreateReport() {
   const [floor, setFloor] = useState('1');
   const [room, setRoom] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [issueCategory, setIssueCategory] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [description, setDescription] = useState('');
-  const [photos, setPhotos] = useState(location.state?.preloadedPhotos || []);
+  const [photos, setPhotos] = useState(
+    initialPhotos.length > 0 ? initialPhotos : (location.state?.preloadedPhotos || [])
+  );
 
   // Validation & status states
   const [floorError, setFloorError] = useState('');
   const [generalError, setGeneralError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Constraint 1: Dynamically update building when campus changes
+  // Guest modal states
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [guestEmail, setGuestEmail] = useState('');
+  const [submittedTicket, setSubmittedTicket] = useState(null);
+
+  // Fetch dynamic categories on component mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const res = await axios.get('/api/categories');
+        const data = Array.isArray(res.data) ? res.data : [];
+        setCategories(data);
+        if (data.length > 0) {
+          const firstCat = data[0];
+          const firstName = typeof firstCat === 'string' ? firstCat : (firstCat.issueName || '');
+          setIssueCategory(firstName);
+        }
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Floor options dynamically generated from 1 to maxFloor of the selected building
+  const availableCampuses = Object.keys(campusConfig);
+  const availableBuildings = Object.keys(campusConfig[campus] || {});
+  const currentBuildingConfig = campusConfig[campus]?.[building];
+  const maxFloor = currentBuildingConfig?.maxFloor || 1;
+  const availableFloors = Array.from({ length: maxFloor }, (_, i) => String(i + 1));
+
+  // Dynamically update building and floor when campus changes
   const handleCampusChange = (e) => {
     const selectedCampus = e.target.value;
     setCampus(selectedCampus);
-    const availableBuildings = CAMPUS_BUILDINGS[selectedCampus] || [];
-    setBuilding(availableBuildings[0] || '');
+    const buildings = Object.keys(campusConfig[selectedCampus] || {});
+    const newBuilding = buildings[0] || '';
+    setBuilding(newBuilding);
+
+    const buildingConfig = campusConfig[selectedCampus]?.[newBuilding];
+    const newMaxFloor = buildingConfig?.maxFloor || 1;
+    if (Number(floor) > newMaxFloor) {
+      setFloor('1');
+      if (room) validateRoomFloor('1', room);
+    } else if (room) {
+      validateRoomFloor(floor, room);
+    }
   };
 
-  // Constraint 2: Room first digit validation against floor
+  const handleBuildingChange = (e) => {
+    const newBuilding = e.target.value;
+    setBuilding(newBuilding);
+    const buildingConfig = campusConfig[campus]?.[newBuilding];
+    const newMaxFloor = buildingConfig?.maxFloor || 1;
+    if (Number(floor) > newMaxFloor) {
+      setFloor('1');
+      if (room) validateRoomFloor('1', room);
+    } else if (room) {
+      validateRoomFloor(floor, room);
+    }
+  };
+
+  // Validate room first digit matches floor
   const validateRoomFloor = (selectedFloor, roomInput) => {
     if (!roomInput.trim()) {
       setFloorError('');
@@ -106,59 +194,86 @@ export default function CreateReport() {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e) => {
+  const buildFormData = (optionalEmail = '') => {
+    const formData = new FormData();
+    formData.append('campus', campus);
+    formData.append('building', building);
+    formData.append('floor', floor);
+    formData.append('room', room.trim());
+    if (landmark) formData.append('landmark', landmark.trim());
+    formData.append('issueCategory', issueCategory);
+    formData.append('category', issueCategory);
+    formData.append('description', description.trim());
+    if (optionalEmail) formData.append('guestEmail', optionalEmail.trim());
+
+    photos.forEach((photo) => {
+      if (photo.file instanceof File) {
+        formData.append('images', photo.file);
+      } else if (photo.dataUrl && photo.dataUrl.startsWith('data:image/')) {
+        const arr = photo.dataUrl.split(',');
+        const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        formData.append('images', blob, photo.name || 'photo.jpg');
+      } else if (typeof photo === 'string' && photo.startsWith('data:image/')) {
+        const arr = photo.split(',');
+        const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        formData.append('images', blob, 'photo.jpg');
+      }
+    });
+
+    return formData;
+  };
+
+  // Form submit handler
+  const handleSubmit = (e) => {
     e.preventDefault();
     setGeneralError('');
 
-    // Strict validation check
     const isFloorValid = validateRoomFloor(floor, room);
     if (!isFloorValid) {
       setFloorError('Floor mismatch');
       return;
     }
 
+    // Guest submission: intercept with Email Capture Modal
+    if (isGuest) {
+      setShowEmailModal(true);
+      return;
+    }
+
+    // Authenticated user direct submission
+    executeSubmission();
+  };
+
+  const executeSubmission = async (emailToSubmit = '') => {
     setLoading(true);
+    setGeneralError('');
 
     try {
-      const formData = new FormData();
-      formData.append('campus', campus);
-      formData.append('building', building);
-      formData.append('floor', floor);
-      formData.append('room', room.trim());
-      if (landmark) formData.append('landmark', landmark.trim());
-      formData.append('category', category);
-      formData.append('description', description.trim());
-
-      photos.forEach((photo) => {
-        if (photo.file instanceof File) {
-          formData.append('images', photo.file);
-        } else if (photo.dataUrl && photo.dataUrl.startsWith('data:image/')) {
-          const arr = photo.dataUrl.split(',');
-          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-          const bstr = atob(arr[1]);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-          }
-          const blob = new Blob([u8arr], { type: mime });
-          formData.append('images', blob, photo.name || 'photo.jpg');
-        } else if (typeof photo === 'string' && photo.startsWith('data:image/')) {
-          const arr = photo.split(',');
-          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-          const bstr = atob(arr[1]);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-          }
-          const blob = new Blob([u8arr], { type: mime });
-          formData.append('images', blob, 'photo.jpg');
-        }
-      });
-
-      await createTicket(formData);
-      navigate('/my-reports');
+      const formData = buildFormData(emailToSubmit);
+      let res;
+      if (isGuest) {
+        res = await createGuestTicket(formData);
+        setSubmittedTicket(res.ticket);
+        setShowEmailModal(false);
+        if (onSuccess) onSuccess(res.ticket);
+      } else {
+        await createTicket(formData);
+        navigate('/my-reports');
+      }
     } catch (err) {
       setGeneralError(err.response?.data?.error || 'Submission failed');
     } finally {
@@ -169,8 +284,18 @@ export default function CreateReport() {
   return (
     <div className="max-w-2xl mx-auto py-4">
       <div className="bg-surface border border-slate-700/60 rounded-xl p-6 sm:p-8 shadow-2xl">
-        {/* Header - 1-2 words only, no subtitles */}
-        <h1 className="text-xl font-bold text-text mb-6">Create Report</h1>
+        {/* Constraint 1: Header title horizontally aligned with subtle 'X' close button */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-text">Create Report</h1>
+          <button
+            type="button"
+            onClick={handleCancel}
+            aria-label="Close"
+            className="p-1.5 text-muted hover:text-text rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         {generalError && (
           <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-400 flex items-center space-x-2 text-xs">
@@ -191,8 +316,11 @@ export default function CreateReport() {
                 onChange={handleCampusChange}
                 className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
               >
-                <option value="Arlegui">Arlegui</option>
-                <option value="Casal">Casal</option>
+                {availableCampuses.map((camp) => (
+                  <option key={camp} value={camp}>
+                    {camp}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -202,10 +330,10 @@ export default function CreateReport() {
               </label>
               <select
                 value={building}
-                onChange={(e) => setBuilding(e.target.value)}
+                onChange={handleBuildingChange}
                 className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
               >
-                {CAMPUS_BUILDINGS[campus].map((bld) => (
+                {availableBuildings.map((bld) => (
                   <option key={bld} value={bld}>
                     {bld}
                   </option>
@@ -225,7 +353,7 @@ export default function CreateReport() {
                 onChange={handleFloorChange}
                 className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
               >
-                {[1, 2, 3, 4, 5, 6].map((num) => (
+                {availableFloors.map((num) => (
                   <option key={num} value={num}>
                     {num}
                   </option>
@@ -277,15 +405,24 @@ export default function CreateReport() {
                 Category
               </label>
               <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                value={issueCategory}
+                onChange={(e) => setIssueCategory(e.target.value)}
+                required
                 className="w-full px-3 py-2.5 bg-background border border-slate-700 rounded-lg text-sm text-text focus:outline-none focus:border-primary transition-colors"
               >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
+                {categories.length === 0 ? (
+                  <option value="">{categoriesLoading ? 'Loading categories...' : 'No categories available'}</option>
+                ) : (
+                  categories.map((cat) => {
+                    const name = typeof cat === 'string' ? cat : cat.issueName;
+                    const key = cat._id || name;
+                    return (
+                      <option key={key} value={name}>
+                        {name}
+                      </option>
+                    );
+                  })
+                )}
               </select>
             </div>
           </div>
@@ -305,7 +442,7 @@ export default function CreateReport() {
             />
           </div>
 
-          {/* Photos / Media Gallery */}
+          {/* Photos / Media Gallery: 2-5 files supported */}
           <div>
             <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
               Photos
@@ -353,15 +490,113 @@ export default function CreateReport() {
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={loading || !!floorError}
-            className="w-full py-3 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-background font-semibold rounded-lg text-sm transition-colors mt-4"
-          >
-            {loading ? 'Submitting...' : 'Submit'}
-          </button>
+          {/* Constraint 2: Secondary Cancel button to the left of the main Submit button */}
+          <div className="flex items-center gap-3 mt-6">
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={loading}
+              className="py-3 px-5 bg-transparent border border-slate-700 hover:border-slate-500 hover:bg-slate-800/40 text-muted hover:text-text font-semibold rounded-lg text-sm transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !!floorError}
+              className="flex-1 py-3 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-background font-semibold rounded-lg text-sm transition-colors cursor-pointer"
+            >
+              {loading ? 'Submitting...' : 'Submit'}
+            </button>
+          </div>
         </form>
       </div>
+
+      {/* Guest Email Capture Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-surface border border-slate-700 rounded-xl p-6 shadow-2xl relative">
+            <button
+              type="button"
+              onClick={() => setShowEmailModal(false)}
+              aria-label="Close"
+              className="absolute top-4 right-4 text-muted hover:text-text transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-sm font-semibold text-text mb-4 text-center">
+              Get status updates (Optional)
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-1.5">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="Email"
+                  className="w-full px-3 py-2 bg-background border border-slate-700 rounded-lg text-sm text-text placeholder-slate-500 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => executeSubmission('')}
+                  className="flex-1 py-2.5 px-3 bg-background border border-slate-700 hover:border-primary text-text font-semibold rounded-lg text-xs transition-colors"
+                >
+                  Skip & Submit
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => executeSubmission(guestEmail)}
+                  className="flex-1 py-2.5 px-3 bg-primary hover:bg-amber-500 text-background font-semibold rounded-lg text-xs transition-colors"
+                >
+                  Submit Tip
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest Submission Success Modal */}
+      {submittedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-surface border border-slate-700 rounded-xl p-6 shadow-2xl text-center space-y-4">
+            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+
+            <h2 className="text-base font-bold text-text">Tip Submitted</h2>
+
+            <div className="p-3 bg-background rounded-lg border border-slate-700 font-mono text-sm text-primary font-bold">
+              {submittedTicket.ticketId}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSubmittedTicket(null);
+                setRoom('');
+                setLandmark('');
+                const firstCat = categories[0];
+                setIssueCategory(typeof firstCat === 'string' ? firstCat : (firstCat?.issueName || ''));
+                setDescription('');
+                setPhotos([]);
+              }}
+              className="w-full py-2.5 bg-primary hover:bg-amber-500 text-background font-semibold rounded-lg text-sm transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout';
+import ProtectedLayout from './components/ProtectedLayout';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import CreateReport from './pages/CreateReport';
+import MyReports from './pages/MyReports';
 import AdminQueue from './pages/AdminQueue';
+import Analytics from './pages/Analytics';
 import Profile from './pages/Profile';
 import { getMe } from './api/auth';
 
@@ -54,22 +57,70 @@ export default function App() {
     );
   }
 
-  const role = currentUser?.role || 'User';
-
   return (
     <Router>
       <Routes>
-        <Route element={<Layout userRole={role} onLogout={handleLogout} />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
-          <Route path="/register" element={<Register onLoginSuccess={handleLoginSuccess} />} />
+        {/* Public Routes - Navigation Bar strictly hidden */}
+        <Route
+          path="/"
+          element={
+            currentUser ? (
+              <Navigate
+                to={currentUser.role === 'User' ? '/dashboard' : '/admin'}
+                replace
+              />
+            ) : (
+              <Landing onLoginSuccess={handleLoginSuccess} />
+            )
+          }
+        />
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/register" element={<Navigate to="/" replace />} />
+
+        {/* Authenticated User Routes - ProtectedLayout enforces navbar visibility */}
+        <Route element={<ProtectedLayout user={currentUser} onLogout={handleLogout} />}>
           <Route path="/dashboard" element={<Dashboard user={currentUser} />} />
-          <Route path="/report/new" element={<CreateReport />} />
-          <Route path="/my-reports" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">My Reports</div>} />
-          <Route path="/admin" element={<AdminQueue user={currentUser} />} />
-          <Route path="/analytics" element={<div className="bg-surface p-6 rounded-xl text-center text-muted">Analytics</div>} />
-          <Route path="/profile" element={<Profile user={currentUser} onProfileUpdated={(updated) => setCurrentUser(updated)} />} />
+          <Route path="/report/new" element={<CreateReport isGuest={false} />} />
+          <Route path="/my-reports" element={<MyReports />} />
+          <Route
+            path="/profile"
+            element={
+              <Profile
+                user={currentUser}
+                onProfileUpdated={(updated) => setCurrentUser(updated)}
+              />
+            }
+          />
         </Route>
+
+        {/* Staff & Admin Routes - Protected with RBAC */}
+        <Route
+          element={
+            <ProtectedLayout
+              user={currentUser}
+              onLogout={handleLogout}
+              allowedRoles={['Department', 'Superadmin']}
+            />
+          }
+        >
+          <Route path="/admin" element={<AdminQueue user={currentUser} />} />
+        </Route>
+
+        {/* Superadmin Only Route */}
+        <Route
+          element={
+            <ProtectedLayout
+              user={currentUser}
+              onLogout={handleLogout}
+              allowedRoles={['Superadmin']}
+            />
+          }
+        >
+          <Route path="/analytics" element={<Analytics user={currentUser} />} />
+        </Route>
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

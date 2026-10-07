@@ -11,3 +11,155 @@
     min-height: 100vh;
   }
 }
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* ==========================================
+   TIPped Logo Styles & Animations
+   ========================================== */
+.landing-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.landing-brand:focus-visible {
+  outline: 3px solid rgba(245, 158, 11, 0.72);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.tipped-logo {
+  display: block;
+  width: 150px;
+  height: 45px;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.tipped-logo-frame {
+  transition: stroke 0.22s ease;
+}
+
+.tipped-logo-corner {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.24s cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.tipped-logo-detail {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.landing-brand:hover .tipped-logo-frame,
+.landing-brand:focus-visible .tipped-logo-frame {
+  stroke: #FBBF24;
+}
+
+.landing-brand:hover .corner-tl,
+.landing-brand:focus-visible .corner-tl {
+  transform: translate(-2px, -2px);
+}
+
+.landing-brand:hover .corner-tr,
+.landing-brand:focus-visible .corner-tr {
+  transform: translate(2px, -2px);
+}
+
+.landing-brand:hover .corner-bl,
+.landing-brand:focus-visible .corner-bl {
+  transform: translate(-2px, 2px);
+}
+
+.landing-brand:hover .corner-br,
+.landing-brand:focus-visible .corner-br {
+  transform: translate(2px, 2px);
+}
+
+.landing-brand:hover .tipped-logo-hvac,
+.landing-brand:focus-visible .tipped-logo-hvac {
+  animation: tipped-hvac-sway 1.6s ease-in-out infinite alternate;
+}
+
+.landing-brand:hover .tipped-logo-bolt,
+.landing-brand:focus-visible .tipped-logo-bolt {
+  animation: tipped-bolt-bob 1.05s ease-in-out 0.1s infinite;
+}
+
+.landing-brand:hover .tipped-logo-chemical,
+.landing-brand:focus-visible .tipped-logo-chemical {
+  animation: tipped-flask-rock 1.7s ease-in-out 0.2s infinite alternate;
+}
+
+.landing-brand:hover .tipped-logo-flame,
+.landing-brand:focus-visible .tipped-logo-flame {
+  animation: tipped-flame-flicker 0.8s ease-in-out 0.3s infinite alternate;
+}
+
+@keyframes tipped-hvac-sway {
+  from {
+    transform: rotate(-2deg);
+  }
+  to {
+    transform: rotate(2deg) translateY(-1px);
+  }
+}
+
+@keyframes tipped-bolt-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px) scale(1.04);
+  }
+}
+
+@keyframes tipped-flask-rock {
+  from {
+    transform: rotate(-2deg);
+  }
+  to {
+    transform: rotate(2deg);
+  }
+}
+
+@keyframes tipped-flame-flicker {
+  from {
+    transform: scale(0.96);
+  }
+  to {
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-brand:hover .tipped-logo-corner,
+  .landing-brand:focus-visible .tipped-logo-corner {
+    transform: none !important;
+    transition: none !important;
+  }
+  .landing-brand:hover .tipped-logo-hvac,
+  .landing-brand:focus-visible .tipped-logo-hvac,
+  .landing-brand:hover .tipped-logo-bolt,
+  .landing-brand:focus-visible .tipped-logo-bolt,
+  .landing-brand:hover .tipped-logo-chemical,
+  .landing-brand:focus-visible .tipped-logo-chemical,
+  .landing-brand:hover .tipped-logo-flame,
+  .landing-brand:focus-visible .tipped-logo-flame {
+    animation: none !important;
+  }
+}
