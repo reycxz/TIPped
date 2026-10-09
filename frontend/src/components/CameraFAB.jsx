@@ -80,7 +80,7 @@ export default function CameraFAB({ onCapture, onClick, className = '' }) {
         type="button"
         onClick={handleFabClick}
         aria-label="Camera"
-        className={`fixed z-40 p-4 rounded-full bg-primary hover:bg-amber-500 text-slate-900 shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none bottom-6 right-6 sm:bottom-8 sm:right-8 ${className}`}
+        className={`fixed z-40 p-4 rounded-full bg-primary hover:bg-amber-500 text-slate-900 shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none bottom-6 right-6 sm:bottom-8 sm:right-8 lg:hidden ${className}`}
       >
         <Camera className="w-6 h-6" />
       </button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Pencil } from 'lucide-react';
 import { forgotPassword, resetPassword } from '../api/auth';
 
@@ -7,10 +7,22 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setEmail(initialEmail || '');
+      setConfirmPassword('');
+      setNewPassword('');
+      setOtp('');
+      setError('');
+      setMessage('');
+    }
+  }, [isOpen, initialEmail]);
 
   if (!isOpen) return null;
 
@@ -28,7 +40,7 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
       setOtpSent(true);
       setMessage(res.otp ? `Code: ${res.otp}` : 'OTP sent');
     } catch (err) {
-      setError(err.response?.data?.error || 'Request failed');
+      setError(err.response?.data?.message || err.response?.data?.error || 'Request failed');
     } finally {
       setLoading(false);
     }
@@ -36,8 +48,12 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (!otp || !newPassword) {
+    if (!otp || !newPassword || !confirmPassword) {
       setError('Missing fields');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("New password doesn't match. Please check your spelling.");
       return;
     }
     setError('');
@@ -50,7 +66,7 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
         onClose();
       }, 1500);
     } catch (err) {
-      setError(err.response?.data?.error || 'Reset failed');
+      setError(err.response?.data?.message || err.response?.data?.error || 'Reset failed');
     } finally {
       setLoading(false);
     }
@@ -148,6 +164,23 @@ export default function ForgotPasswordModal({ initialEmail = '', isOpen, onClose
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="New Password"
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className={`w-full px-3 py-2 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none transition-colors border ${
+                  confirmPassword && newPassword === confirmPassword
+                    ? 'border-green-500 focus:border-green-500 focus:ring-green-500/50 bg-green-500/5'
+                    : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:border-primary'
+                }`}
               />
             </div>
 

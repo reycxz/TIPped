@@ -23,6 +23,19 @@ const DEFAULT_CATEGORIES = [
   'Guidance',
 ];
 
+const CASAL_BUILDINGS = [
+  "Founder's (F)",
+  'Building 2 (C)',
+  'PC 5',
+  'PC 12',
+  'PE Center',
+  'PE Center Annex',
+  'Student Hub',
+  'Study Area / Canteen',
+  'Congregating Area',
+  'Casal Garden'
+];
+
 // Helper to process images from multer files or body data
 const extractImageUrls = async (req) => {
   const imageUrls = [];
@@ -169,8 +182,7 @@ exports.createTicket = async (req, res) => {
     if (campus === 'Arlegui' && building !== 'Arlegui (A)') {
       return res.status(400).json({ error: 'Invalid building' });
     }
-    const casalBuildings = ["Founder's (F)", "Building 2 (C)", "PC 5", "PC 12", "PE Center"];
-    if (campus === 'Casal' && !casalBuildings.includes(building)) {
+    if (campus === 'Casal' && !CASAL_BUILDINGS.includes(building)) {
       return res.status(400).json({ error: 'Invalid building' });
     }
 
@@ -264,8 +276,7 @@ exports.createGuestTicket = async (req, res) => {
     if (campus === 'Arlegui' && building !== 'Arlegui (A)') {
       return res.status(400).json({ error: 'Invalid building' });
     }
-    const casalBuildings = ["Founder's (F)", "Building 2 (C)", "PC 5", "PC 12", "PE Center"];
-    if (campus === 'Casal' && !casalBuildings.includes(building)) {
+    if (campus === 'Casal' && !CASAL_BUILDINGS.includes(building)) {
       return res.status(400).json({ error: 'Invalid building' });
     }
 
@@ -951,7 +962,6 @@ exports.restoreTicket = exports.restoreReport;
 exports.getArchivedTickets = exports.getArchivedReports;
 exports.deleteReport = exports.deleteReportForever;
 exports.deleteTicketForever = exports.deleteReportForever;
-
 
 
 

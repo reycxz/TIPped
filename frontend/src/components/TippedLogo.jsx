@@ -1,61 +1,141 @@
-export default function TippedLogo({ className = '', ...props }) {
+import React, { useRef, useState, useEffect, useId } from 'react';
+
+/**
+ * TIPped Official Brand Logo Component (Shadow-Removed Brand Specification)
+ * 
+ * Brand Guidelines Specification:
+ * - Center location pin with Honey (#FDE68A) to Ember (#D97706) linear gradient.
+ * - Dot and stem forming a person and the letter 'i' inside the pin in Midnight (#0F172A).
+ * - Four Amber (#F59E0B) focus brackets framing the issue like a camera finding focus.
+ * - Clear space maintained equal to the width of the pin's head circle (32px relative).
+ * - Minimum size 32px on screen. Below that, drop the brackets and render the pin alone.
+ * - Shadow removed from brand mark per updated guidelines.
+ */
+export default function TippedLogo({
+  className = '',
+  size,
+  height,
+  width,
+  showWordmark = true,
+  withTile = false,
+  ...props
+}) {
+  const containerRef = useRef(null);
+  const [isBelow32, setIsBelow32] = useState(false);
+  const uniqueId = useId().replace(/:/g, '');
+  const gradientId = `tippedPinGrad-${uniqueId}`;
+
+  // Evaluate explicit size prop and dynamically observe rendering dimensions
+  useEffect(() => {
+    const explicitDimension = Number(size || height);
+    if (explicitDimension && explicitDimension > 0) {
+      setIsBelow32(explicitDimension < 32);
+      return;
+    }
+
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const measuredHeight = entry.contentRect.height;
+        if (measuredHeight > 0) {
+          setIsBelow32(measuredHeight < 32);
+        }
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [size, height]);
+
+  // Drop brackets below 32px
+  const dropBrackets = isBelow32 || (size && size < 32) || (height && height < 32);
+
+  const viewBox = showWordmark ? "0 0 1180 400" : "0 0 400 400";
+  const renderHeight = height || size || (showWordmark ? "40" : "32");
+
   return (
-    <svg 
-      className={`tipped-logo ${className}`.trim()} 
-      viewBox="186 78 500 150" 
-      aria-hidden="true" 
-      focusable="false"
+    <div
+      ref={containerRef}
+      className={`tipped-logo-container inline-flex items-center select-none ${className}`.trim()}
+      style={{
+        padding: '0 4px',
+        margin: '0',
+      }}
       {...props}
     >
-      <g transform="translate(210 85)" strokeLinecap="round" strokeLinejoin="round">
-        <path className="tipped-logo-frame tipped-logo-corner corner-tl" d="M36 7H7v29" fill="none" stroke="#F59E0B" strokeWidth="7" />
-        <path className="tipped-logo-frame tipped-logo-corner corner-tr" d="M94 7h29v29" fill="none" stroke="#F59E0B" strokeWidth="7" />
-        <path className="tipped-logo-frame tipped-logo-corner corner-bl" d="M7 94v29h29" fill="none" stroke="#F59E0B" strokeWidth="7" />
-        <path className="tipped-logo-frame tipped-logo-corner corner-br" d="M123 94v29H94" fill="none" stroke="#F59E0B" strokeWidth="7" />
+      <svg
+        className={`tipped-logo-svg ${dropBrackets ? 'logo-compact' : ''}`}
+        viewBox={viewBox}
+        height={renderHeight}
+        width={width}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-label="TIPped Logo"
+      >
+        <defs>
+          {/* Honey (#FDE68A) to Ember (#D97706) Pin Linear Gradient */}
+          <linearGradient id={gradientId} x1="0.1" y1="0.05" x2="0.9" y2="0.95">
+            <stop offset="0%" stopColor="#FDE68A" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+        </defs>
 
-        <g className="tipped-logo-pin">
-          <path d="M65 110C55 98 33 76 33 56a32 32 0 1 1 64 0c0 20-22 42-32 54Z" fill="#F59E0B" />
-          <rect x="44" y="40" width="42" height="36" rx="2" fill="#C4C7CC" stroke="#0F172A" strokeWidth="1.5" />
-          <path d="M44 40h42v4H44z" fill="#F59E0B" />
-          <path d="M44 44h42v4H44zM44 68h42v8H44z" fill="#0F172A" />
-          <text x="65" y="63" textAnchor="middle" fill="#0F172A" fontFamily="Inter, Segoe UI, sans-serif" fontSize="14" fontWeight="900" letterSpacing="-.5">T.I.P.</text>
-          <path d="M53 72h24" fill="none" stroke="#F59E0B" strokeWidth="1.3" />
-        </g>
+        {/* Optional Brand Tile Background (Midnight #0F172A) */}
+        {withTile && (
+          <rect width="400" height="400" rx="40" fill="#0F172A" />
+        )}
 
-        <g transform="translate(10 39) scale(1.2)">
-          <g className="tipped-logo-detail tipped-logo-hvac" fill="none" stroke="#F8FAFC" strokeWidth="1.25">
-            <rect x=".8" y="1" width="12.4" height="6" rx="1.3" />
-            <path d="M3 4h8M3.5 9c-.8.6.8 1.2 0 2.3M7 9c-.8.6.8 1.2 0 2.3M10.5 9c-.8.6.8 1.2 0 2.3" />
-            <path d="M3.5 5.6h7" stroke="#F59E0B" />
+        {/* Mark Group: Exact Vector Paths from Official Shadow-Removed Brand SVG */}
+        <g className="tipped-mark-group">
+          {/* Four Amber (#F59E0B) Focus Brackets (dropped below 32px) */}
+          {!dropBrackets && (
+            <g
+              className="tipped-logo-brackets"
+              fill="none"
+              stroke="#F59E0B"
+              strokeWidth="22"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path className="corner-tl" d="M66 140V76a10 10 0 0 1 10-10h64" />
+              <path className="corner-tr" d="M260 66h64a10 10 0 0 1 10 10v64" />
+              <path className="corner-bl" d="M66 260v64a10 10 0 0 0 10 10h64" />
+              <path className="corner-br" d="M260 334h64a10 10 0 0 0 10-10v-64" />
+            </g>
+          )}
+
+          {/* Location Pin with Honey-to-Ember Gradient (Shadow Removed) */}
+          <path
+            className="tipped-pin-body"
+            d="M200 92C154 92 118 128 118 174c0 52 56 100 82 126 26-26 82-74 82-126 0-46-36-82-82-82z"
+            fill={`url(#${gradientId})`}
+          />
+
+          {/* Student / lowercase 'i' inside pin in Midnight (#0F172A) */}
+          <g transform="translate(0 -4)" fill="#0F172A">
+            <circle cx="200" cy="154" r="15" />
+            <path d="M180 238V204a20 20 0 0 1 40 0v34a8 8 0 0 1-8 8h-24a8 8 0 0 1-8-8z" />
           </g>
         </g>
 
-        <g transform="translate(104 39) scale(1.2)">
-          <g className="tipped-logo-detail tipped-logo-bolt">
-            <path d="M8.6 .7 3.2 7h3.1l-1 5.7L10.8 6H7.6Z" fill="#F8FAFC" />
-            <path d="M8.6 .7 3.2 7h3.1l-1 5.7L10.8 6H7.6Z" fill="none" stroke="#0F172A" strokeWidth=".55" />
-          </g>
-        </g>
-
-        <g transform="translate(10 75) scale(1.2)">
-          <g className="tipped-logo-detail tipped-logo-chemical" fill="none" stroke="#F8FAFC" strokeWidth="1.25">
-            <path d="M4 1h6M5.5 1v3L2.2 10a1.2 1.2 0 0 0 1 1.8h7.6a1.2 1.2 0 0 0 1-1.8L9 4V1M3.8 8h7" />
-            <path d="M4.5 9.6h5.8" stroke="#F59E0B" />
-          </g>
-        </g>
-
-        <g transform="translate(104 75) scale(1.2)">
-          <g className="tipped-logo-detail tipped-logo-flame">
-            <path d="M8 1C8 4 5 4.7 5 7c0 1 .7 1.7.7 1.7S4 7.8 3 6.5C2 8 2 10 3.5 11.4c.8.8 1.8 1.1 3 1.1 3.5 0 5.8-2.2 5.8-5.2C12.3 4.8 10.8 2.8 8 1Z" fill="none" stroke="#F8FAFC" strokeWidth="1.25" />
-            <path d="M7.1 7.2c-1.3 1.5-.8 3 0 3.6 1.1-.4 1.8-1.2 1.8-2.4 0-.8-.4-1.4-1-2-.1.4-.4.6-.8.8Z" fill="#F59E0B" />
-          </g>
-        </g>
-      </g>
-
-      <text className="tipped-logo-wordmark" x="365" y="176" fontFamily="'Bahnschrift SemiBold', Bahnschrift, 'Segoe UI', sans-serif" fontSize="92" fontWeight="400" letterSpacing="-4">
-        <tspan fill="#F59E0B">TIP</tspan>
-        <tspan className="text-slate-500 dark:text-slate-300 fill-current" fill="currentColor">ped</tspan>
-      </text>
-    </svg>
+        {/* Wordmark: Bricolage Grotesque ExtraBold with Clear Space equal to pin head circle */}
+        {showWordmark && (
+          <text
+            x="410"
+            y="272"
+            fontFamily="'Bricolage Grotesque', sans-serif"
+            fontSize="210"
+            fontWeight="800"
+            letterSpacing="-6"
+            className="tipped-wordmark"
+          >
+            <tspan fill="#F59E0B">TIP</tspan>
+            <tspan className="fill-[#0F172A] dark:fill-[#F8FAFC]" fill="currentColor">
+              ped
+            </tspan>
+          </text>
+        )}
+      </svg>
+    </div>
   );
 }

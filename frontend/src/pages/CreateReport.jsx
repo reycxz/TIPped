@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { createTicket, createGuestTicket } from '../api/tickets';
-import { Upload, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload, X, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
+import CampusMap from '../components/CampusMap/CampusMap';
 
 // Constraint 1: Arlegui room data dictionary
 const arleguiRooms = {
@@ -23,9 +24,22 @@ const campusConfig = {
     "Building 2 (C)": { prefix: "C", maxFloor: 3 },
     "PC 5": { prefix: "PC5", maxFloor: 1 },
     "PC 12": { prefix: "PC12", maxFloor: 2 },
-    "PE Center": { prefix: "PE", maxFloor: 1 }
+    "PE Center": { prefix: "PE", maxFloor: 1 },
+    "PE Center Annex": { prefix: "PEA", maxFloor: 1 },
+    "Student Hub": { prefix: "HUB", maxFloor: 1 },
+    "Study Area / Canteen": { prefix: "OA", maxFloor: 1 },
+    "Congregating Area": { prefix: "OA", maxFloor: 1 },
+    "Casal Garden": { prefix: "OA", maxFloor: 1 }
   }
 };
+
+const NON_ROOM_BUILDINGS = new Set([
+  'PE Center Annex',
+  'Student Hub',
+  'Study Area / Canteen',
+  'Congregating Area',
+  'Casal Garden'
+]);
 
 export default function CreateReport({
   isGuest = false,
@@ -66,6 +80,65 @@ export default function CreateReport({
   const [room, setRoom] = useState('');
   const [isRoomSpecific, setIsRoomSpecific] = useState(true);
   const [landmark, setLandmark] = useState('');
+  const [showMapPicker, setShowMapPicker] = useState(false);
+
+  const applyLocationString = (locStr) => {
+    if (!locStr) return;
+    setLandmark(locStr);
+
+    if (locStr.includes('Casal Campus')) {
+      setCampus('Casal');
+    } else if (locStr.includes('Arlegui Campus')) {
+      setCampus('Arlegui');
+    }
+
+    if (locStr.includes("Founder's Building") || locStr.includes("Founder's")) {
+      setBuilding("Founder's (F)");
+    } else if (locStr.includes("Building 2")) {
+      setBuilding("Building 2 (C)");
+    } else if (locStr.includes("PC 5") || locStr.includes("PC-5")) {
+      setBuilding("PC 5");
+    } else if (locStr.includes("PC 12") || locStr.includes("PC-12")) {
+      setBuilding("PC 12");
+    } else if (locStr.includes("PE Center Annex")) {
+      setBuilding("PE Center Annex");
+    } else if (locStr.includes("PE Center")) {
+      setBuilding("PE Center");
+    } else if (locStr.includes("Student Hub")) {
+      setBuilding("Student Hub");
+    } else if (locStr.includes("Study Area / Canteen")) {
+      setBuilding("Study Area / Canteen");
+    } else if (locStr.includes("Congregating Area")) {
+      setBuilding("Congregating Area");
+    } else if (locStr.includes("Casal Garden")) {
+      setBuilding("Casal Garden");
+    } else if (locStr.includes("Arlegui")) {
+      setBuilding("Arlegui (A)");
+    }
+
+    const matchedBuilding = Object.keys(campusConfig).flatMap((campusName) =>
+      Object.keys(campusConfig[campusName])
+    ).sort((a, b) => b.length - a.length)
+      .find((buildingName) => locStr.includes(buildingName));
+    const selectedBuilding = matchedBuilding ||
+      (locStr.includes("Founder's") ? "Founder's (F)" :
+        locStr.includes("Building 2") ? "Building 2 (C)" :
+          locStr.includes("PC 5") || locStr.includes("PC-5") ? "PC 5" :
+            locStr.includes("PC 12") || locStr.includes("PC-12") ? "PC 12" :
+              locStr.includes("Arlegui") ? "Arlegui (A)" : null);
+    if (selectedBuilding && NON_ROOM_BUILDINGS.has(selectedBuilding)) {
+      setFloor('1');
+      setRoom('');
+      setIsRoomSpecific(false);
+    }
+
+    const floorMatch = locStr.match(/Floor\s+(\d+)/i);
+    if (floorMatch && !NON_ROOM_BUILDINGS.has(selectedBuilding)) {
+      setFloor(floorMatch[1]);
+      setIsRoomSpecific(false);
+      setRoom('');
+    }
+  };
   // Constraint 2: Initialize category as empty string
   const [category, setCategory] = useState('');
   const [categoryError, setCategoryError] = useState('');
@@ -193,6 +266,13 @@ export default function CreateReport({
   const handleBuildingChange = (e) => {
     const newBuilding = e.target.value;
     setBuilding(newBuilding);
+    if (NON_ROOM_BUILDINGS.has(newBuilding)) {
+      setFloor('1');
+      setRoom('');
+      setIsRoomSpecific(false);
+      setFloorError('');
+      return;
+    }
     const buildingConfig = campusConfig[campus]?.[newBuilding];
     const newMaxFloor = buildingConfig?.maxFloor || 1;
     if (Number(floor) > newMaxFloor) {
@@ -554,17 +634,28 @@ export default function CreateReport({
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Landmark
               </label>
-              <input
-                type="text"
-                value={landmark}
-                onChange={(e) => setLandmark(e.target.value)}
-                placeholder={
-                  !isRoomSpecific
-                    ? "Describe the area (e.g., Near stairs, Main Lobby)"
-                    : "Landmark"
-                }
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
-              />
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
+                  placeholder={
+                    !isRoomSpecific
+                      ? "Describe the area (e.g., Near stairs, Main Lobby)"
+                      : "Landmark"
+                  }
+                  className="w-full pl-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowMapPicker(true)}
+                  aria-label="Select location on campus map"
+                  title="Select location on campus map"
+                  className="absolute right-2 p-1.5 text-slate-400 hover:text-amber-500 transition-colors cursor-pointer"
+                >
+                  <MapPin className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div>
@@ -781,6 +872,42 @@ export default function CreateReport({
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Campus Map Picker Modal */}
+      {showMapPicker && (
+        <div
+          onClick={() => setShowMapPicker(false)}
+          className="fixed inset-0 w-screen h-screen z-[99999] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-5xl max-h-[95vh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+          >
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+              <div className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
+                Select Campus Location
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMapPicker(false)}
+                aria-label="Close campus map picker"
+                className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="relative w-full h-[60vh] min-h-[400px] overflow-hidden">
+              <CampusMap
+                mode="picker"
+                onLocationSelect={(loc) => {
+                  applyLocationString(loc);
+                  setShowMapPicker(false);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

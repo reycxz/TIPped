@@ -84,22 +84,23 @@ const userSchema = new mongoose.Schema(
 
 // Pre-save hook to hash password and sync category fields
 userSchema.pre('save', async function (next) {
+  const done = typeof next === 'function' ? next : () => {};
+  if (!this.isModified('password')) return done();
+
   if (Array.isArray(this.assignedCategories) && this.assignedCategories.length > 0 && !this.departmentCategory) {
     this.departmentCategory = this.assignedCategories[0];
   } else if (this.departmentCategory && (!this.assignedCategories || this.assignedCategories.length === 0)) {
     this.assignedCategories = [this.departmentCategory];
   }
 
-  if (typeof next !== 'function') next = () => {};
-
-  if (!this.isModified('password') || !this.password) return next();
+  if (!this.password) return done();
 
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    return next();
+    return done();
   } catch (err) {
-    return next(err);
+    throw new Error(err.message || 'Error hashing password');
   }
 });
 

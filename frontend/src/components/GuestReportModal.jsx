@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { createGuestTicket } from '../api/tickets';
-import { Upload, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload, X, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
+import CampusMap from './CampusMap/CampusMap';
 
 const arleguiRooms = {
   '1': ['A-101', 'A-102', 'A-103', 'A-104', 'A-105', 'A-106', 'A-107', 'A-108', 'A-109', 'A-110'],
@@ -30,7 +31,8 @@ export default function GuestReportModal({
   onClose,
   onSuccess,
   initialPhoto = null,
-  initialPhotos = []
+  initialPhotos = [],
+  initialLocation = ''
 }) {
   // Form states
   const [campus, setCampus] = useState('Arlegui');
@@ -39,6 +41,45 @@ export default function GuestReportModal({
   const [room, setRoom] = useState('');
   const [isRoomSpecific, setIsRoomSpecific] = useState(true);
   const [landmark, setLandmark] = useState('');
+  const [showMapPicker, setShowMapPicker] = useState(false);
+
+  const applyLocationString = (locStr) => {
+    if (!locStr) return;
+    setLandmark(locStr);
+
+    if (locStr.includes('Casal Campus')) {
+      setCampus('Casal');
+    } else if (locStr.includes('Arlegui Campus')) {
+      setCampus('Arlegui');
+    }
+
+    if (locStr.includes("Founder's Building") || locStr.includes("Founder's")) {
+      setBuilding("Founder's (F)");
+    } else if (locStr.includes("Building 2")) {
+      setBuilding("Building 2 (C)");
+    } else if (locStr.includes("PC 5") || locStr.includes("PC-5")) {
+      setBuilding("PC 5");
+    } else if (locStr.includes("PC 12") || locStr.includes("PC-12")) {
+      setBuilding("PC 12");
+    } else if (locStr.includes("PE Center")) {
+      setBuilding("PE Center");
+    } else if (locStr.includes("Arlegui")) {
+      setBuilding("Arlegui (A)");
+    }
+
+    const floorMatch = locStr.match(/Floor\s+(\d+)/i);
+    if (floorMatch) {
+      setFloor(floorMatch[1]);
+      setIsRoomSpecific(false);
+      setRoom('');
+    }
+  };
+
+  useEffect(() => {
+    if (initialLocation) {
+      applyLocationString(initialLocation);
+    }
+  }, [initialLocation]);
   // Constraint 2: Initialize category as empty string
   const [category, setCategory] = useState('');
   const [categoryError, setCategoryError] = useState('');
@@ -339,7 +380,8 @@ export default function GuestReportModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md p-4 flex items-center justify-center">
+    <>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md p-4 flex items-center justify-center">
       <div className="w-full max-w-2xl relative my-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 sm:p-8 shadow-2xl transition-colors duration-200">
         {/* Header title with subtle 'X' close button */}
         <div className="flex items-center justify-between mb-6">
@@ -490,17 +532,28 @@ export default function GuestReportModal({
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                 Landmark
               </label>
-              <input
-                type="text"
-                value={landmark}
-                onChange={(e) => setLandmark(e.target.value)}
-                placeholder={
-                  !isRoomSpecific
-                    ? "Describe the area (e.g., Near stairs, Main Lobby)"
-                    : "Landmark"
-                }
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
-              />
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
+                  placeholder={
+                    !isRoomSpecific
+                      ? "Describe the area (e.g., Near stairs, Main Lobby)"
+                      : "Landmark"
+                  }
+                  className="w-full pl-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowMapPicker(true)}
+                  aria-label="Select location on campus map"
+                  title="Select location on campus map"
+                  className="absolute right-2 p-1.5 text-slate-400 hover:text-amber-500 transition-colors cursor-pointer"
+                >
+                  <MapPin className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div>
@@ -704,5 +757,42 @@ export default function GuestReportModal({
         )}
       </div>
     </div>
-  );
+
+    {/* Campus Map Picker Modal */}
+    {showMapPicker && (
+      <div
+        onClick={() => setShowMapPicker(false)}
+        className="fixed inset-0 w-screen h-screen z-[99999] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm"
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-5xl max-h-[95vh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+        >
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+            <div className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
+              Select Campus Location
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMapPicker(false)}
+              aria-label="Close campus map picker"
+              className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="relative w-full h-[60vh] min-h-[400px] overflow-hidden">
+            <CampusMap
+              mode="picker"
+              onLocationSelect={(loc) => {
+                applyLocationString(loc);
+                setShowMapPicker(false);
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 }

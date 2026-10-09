@@ -16,7 +16,7 @@ const createEmailTransporter = () => {
 // @desc    Register a new user (Generates real OTP saved to DB)
 // @route   POST /api/auth/register
 // @access  Public
-exports.register = async (req, res) => {
+exports.register = async (req, res, next) => {
   try {
     const { firstName, lastName, email, program, password, departmentCategory } = req.body;
 
@@ -90,14 +90,14 @@ exports.register = async (req, res) => {
         error: 'Email already exists. Please log in.'
       });
     }
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 };
 
 // @desc    Verify registration OTP and issue JWT
 // @route   POST /api/auth/verify-otp
 // @access  Public
-exports.verifyOtp = async (req, res) => {
+exports.verifyOtp = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
     if (!email || !otp) {
@@ -134,14 +134,14 @@ exports.verifyOtp = async (req, res) => {
       user: userObj
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 };
 
 // @desc    Authenticate user & get token
 // @route   POST /api/auth/login
 // @access  Public
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -149,10 +149,8 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Please provide email and password' });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const user = await User.findOne({ email: normalizedEmail });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
     // Constraint 5: Check if user registered with Google
     if (user.authProvider === 'google') {
@@ -162,14 +160,14 @@ exports.login = async (req, res) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+    const isMatch = await bcrypt.compare(req.body.password, user.password);
+    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     
     res.json({ token, user });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 };
 
@@ -284,7 +282,7 @@ exports.getMe = async (req, res) => {
 // @desc    Forgot password - generate OTP
 // @route   POST /api/auth/forgot-password
 // @access  Public
-exports.forgotPassword = async (req, res) => {
+exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -320,14 +318,14 @@ exports.forgotPassword = async (req, res) => {
     // Never expose raw OTP in HTTP response
     res.json({ message: 'OTP sent to your email' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 };
 
 // @desc    Reset password using OTP
 // @route   POST /api/auth/reset-password
 // @access  Public
-exports.resetPassword = async (req, res) => {
+exports.resetPassword = async (req, res, next) => {
   try {
     const { email, otp, newPassword } = req.body;
     if (!email || !otp || !newPassword) {
@@ -355,7 +353,7 @@ exports.resetPassword = async (req, res) => {
 
     res.json({ message: 'Password saved' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 };
 
@@ -403,27 +401,28 @@ exports.changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Missing fields' });
+      return res.status(400).json({ error: 'Missing fields', message: 'Missing fields' });
     }
 
-    const user = await User.findById(req.user._id);
+    const userId = req.user?._id || req.user?.id;
+    const user = await User.findById(userId).select('+password');
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'User not found', message: 'User not found' });
     }
 
-    // Verify current password
+    // Use bcrypt.compare(currentPassword, user.password) to strictly validate the current password against the database hash
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid password' });
+      return res.status(400).json({ error: 'Incorrect current password', message: 'Incorrect current password' });
     }
 
-    // Update password (pre-save hook hashes with bcrypt, preserving _id and history)
+    // Only hash and save the newPassword if this check passes
     user.password = newPassword;
     await user.save();
 
-    res.json({ message: 'Password saved' });
+    return res.status(200).json({ message: 'Password saved' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message, message: error.message });
   }
 };
 

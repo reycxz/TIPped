@@ -172,7 +172,7 @@ export default function Login({ onLoginSuccess, isEmbedded = false, onToggleRegi
             <button
               type="button"
               onClick={() => setIsForgotModalOpen(true)}
-              className="text-xs text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
+              className="text-sm p-2 pb-1 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
             >
               Forgot Password
             </button>

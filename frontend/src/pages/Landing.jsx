@@ -1,17 +1,53 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import CreateReport from './CreateReport';
 import GuestReportModal from '../components/GuestReportModal';
-import CameraFAB from '../components/CameraFAB';
 import Login from './Login';
 import Register from './Register';
-import { Camera, X } from 'lucide-react';
+import { Camera, Image as ImageIcon, X } from 'lucide-react';
 
 export default function Landing({ onLoginSuccess }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const words = ['See', 'Snap', 'TIP'];
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [displayText, setDisplayText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const currentWord = words[currentWordIndex];
+    let timer;
+
+    if (!isDeleting) {
+      if (displayText.length < currentWord.length) {
+        timer = setTimeout(() => {
+          setDisplayText(currentWord.slice(0, displayText.length + 1));
+        }, 100);
+      } else {
+        timer = setTimeout(() => {
+          setIsDeleting(true);
+        }, 1500);
+      }
+    } else {
+      if (displayText.length > 0) {
+        timer = setTimeout(() => {
+          setDisplayText(currentWord.slice(0, displayText.length - 1));
+        }, 50);
+      } else {
+        timer = setTimeout(() => {
+          setIsDeleting(false);
+          setCurrentWordIndex((prevIndex) => (prevIndex + 1) % words.length);
+        }, 200);
+      }
+    }
+
+    return () => clearTimeout(timer);
+  }, [displayText, isDeleting, currentWordIndex]);
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [capturedFile, setCapturedFile] = useState(null);
@@ -84,6 +120,12 @@ export default function Landing({ onLoginSuccess }) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white flex flex-col font-sans transition-colors duration-200">
+      <style>{`
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+      `}</style>
       {/* Header */}
       <Navbar isLanding={true} />
 
@@ -91,38 +133,93 @@ export default function Landing({ onLoginSuccess }) {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center my-auto">
           {/* Left Column: Hero Text + Constraint 2: Prominent Guest CTA Button */}
-          <div className="flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight max-w-lg">
-              <span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">S</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">e</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">e</span>
-              {' '}
-              <span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">i</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">t</span><span className="inline-block transition-transform duration-200 hover:-translate-y-2 cursor-default">.</span>
-              {' '}
-              <span className="inline-block cursor-default transition-all duration-75 hover:scale-[1.02] hover:brightness-150 hover:text-white hover:drop-shadow-[0_0_20px_rgba(255,255,255,0.9)]">
-                Snap it.
-              </span>{' '}
-              <br className="hidden sm:inline" />
-              <span className="text-amber-500 hover:text-amber-400 inline-block transition-all duration-300 hover:scale-110 hover:-translate-y-1 cursor-default hover:drop-shadow-lg hover:brightness-110">
-                TIP it.
+          <div className="relative flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
+            {/* Constraint 2: Decorative Background Watermark */}
+            <div
+              className="absolute -top-12 -left-12 sm:-top-16 sm:-left-20 w-80 h-80 sm:w-[460px] sm:h-[460px] opacity-5 dark:opacity-10 pointer-events-none -z-10 select-none text-[#F59E0B]"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 400 400" className="w-full h-full" fill="none" stroke="currentColor">
+                <g strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M66 140V76a10 10 0 0 1 10-10h64" />
+                  <path d="M260 66h64a10 10 0 0 1 10 10v64" />
+                  <path d="M66 260v64a10 10 0 0 0 10 10h64" />
+                  <path d="M260 334h64a10 10 0 0 0 10-10v-64" />
+                </g>
+                <path
+                  d="M200 92C154 92 118 128 118 174c0 52 56 100 82 126 26-26 82-74 82-126 0-46-36-82-82-82z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight max-w-lg font-display flex items-baseline justify-center lg:justify-start">
+              <span
+                className={`inline-block transition-colors duration-150 ${
+                  words[currentWordIndex] === 'TIP'
+                    ? 'text-[#F59E0B]'
+                    : 'text-slate-900 dark:text-white'
+                }`}
+              >
+                {displayText}
               </span>
+              <span
+                className="inline-block w-[2px] h-[0.75em] bg-current mx-1 transform translate-y-[0.1em]"
+                style={{ animation: 'blink 1s step-start infinite' }}
+              ></span>
+              <span className="text-slate-900 dark:text-white">{" it."}</span>
             </h1>
 
             <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-md leading-relaxed">
               Report campus facilities and service issues instantly.
             </p>
 
-            {/* Constraint 2: Prominent Guest "Submit Tip" Action Button */}
-            <div className="pt-2">
+            {/* Inline Responsive "Submit Tip" Button & Selection Menu */}
+            <div className="relative pt-2 flex flex-col items-center lg:items-start w-full">
               <button
                 type="button"
-                onClick={() => {
-                  setCapturedPhotos([]);
-                  setShowReportModal(true);
-                }}
-                className="px-7 py-3.5 bg-primary hover:bg-amber-500 text-background font-bold rounded-xl text-sm transition-all shadow-lg hover:shadow-primary/25 flex items-center justify-center space-x-2.5 cursor-pointer active:scale-95"
+                onClick={() => setIsMenuOpen((prev) => !prev)}
+                aria-label="Submit Tip"
+                aria-expanded={isMenuOpen}
+                className="p-4 sm:px-6 sm:py-3 rounded-full bg-primary hover:bg-amber-500 text-slate-900 font-bold text-sm shadow-lg hover:scale-105 transition-all duration-300 flex items-center justify-center cursor-pointer active:scale-95"
               >
-                <Camera className="w-4 h-4" />
-                <span>Submit Tip</span>
+                <Camera className="w-7 h-7 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline ml-2">Submit Tip</span>
               </button>
+
+              {/* Selection Menu (Dark/Light mode brand colors) */}
+              {isMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
+                  <div className="absolute top-full mt-3 z-30 w-52 py-2 bg-mist dark:bg-midnight bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl transition-all">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        cameraInputRef.current?.click();
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-amber-600 dark:hover:text-amber-400 flex items-center transition-colors cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4 mr-3 text-amber-500" />
+                      <span>Open Camera</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        galleryInputRef.current?.click();
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-amber-600 dark:hover:text-amber-400 flex items-center transition-colors cursor-pointer"
+                    >
+                      <ImageIcon className="w-4 h-4 mr-3 text-amber-500" />
+                      <span>Upload Photo</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -155,12 +252,20 @@ export default function Landing({ onLoginSuccess }) {
           </div>
         </div>
 
-        {/* Constraint 1: Hidden file input with accept="image/*" for native camera / gallery trigger */}
+        {/* Constraint 2: Hidden inputs for native mobile Camera & Gallery triggers */}
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          ref={cameraInputRef}
+          onChange={handlePhotoCapture}
+        />
         <input
           type="file"
           accept="image/*"
           className="hidden"
-          ref={fileInputRef}
+          ref={galleryInputRef}
           onChange={handlePhotoCapture}
         />
 
@@ -183,11 +288,6 @@ export default function Landing({ onLoginSuccess }) {
           />
         )}
 
-        {/* Constraint 2: Mobile-First Camera FAB with onClick executing fileInputRef.current.click() */}
-        <CameraFAB
-          onClick={() => fileInputRef.current.click()}
-          className="md:hidden"
-        />
       </main>
     </div>
   );

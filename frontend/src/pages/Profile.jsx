@@ -97,7 +97,7 @@ export default function Profile({ user, onProfileUpdated }) {
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('New password and confirm password do not match.');
+      setPasswordError("New password doesn't match. Please check your spelling.");
       return;
     }
 
@@ -360,7 +360,11 @@ export default function Profile({ user, onProfileUpdated }) {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm Password"
-                  className="w-full px-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                  className={`w-full px-3 pr-10 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors border ${
+                    confirmPassword && newPassword === confirmPassword
+                      ? 'border-green-500 focus:border-green-500 focus:ring-green-500/50 bg-green-500/5'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:border-primary'
+                  }`}
                 />
                 <button
                   type="button"

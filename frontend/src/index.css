@@ -1,14 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* ==========================================
+     TIPped Official Brand Guidelines Tokens
+     ========================================== */
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-text: 'DM Sans', sans-serif;
+
+  /* Brand Palette Hex Codes */
+  --color-midnight: #0F172A;
+  --color-mist: #F8FAFC;
+  --color-amber: #F59E0B;
+  --color-slate: #647488;
+  --color-honey: #FDE68A;
+  --color-ember: #D97706;
+
+  /* Dynamic Theme Variables (Light Mode Default) */
+  --bg-primary: #F8FAFC;         /* Mist: Primary background in light mode */
+  --bg-surface: #FFFFFF;
+  --text-primary: #0F172A;       /* Midnight: Primary text in light mode */
+  --text-secondary: #647488;     /* Slate: Secondary text */
+  --color-accent: #F59E0B;       /* Amber: Primary accent/buttons */
+  --color-accent-text: #0F172A;  /* CRITICAL: Text on Amber MUST use Midnight, never white */
+
+  --pin-head-size: 32px;
+  --logo-clear-space: 32px;
+}
+
+.dark {
+  /* Dynamic Theme Variables (Dark Mode) */
+  --bg-primary: #0F172A;         /* Midnight: Primary background in dark mode */
+  --bg-surface: #1E293B;
+  --text-primary: #F8FAFC;       /* Mist: Primary text in dark mode */
+  --text-secondary: #94A3B8;     /* Secondary text */
+  --color-accent: #F59E0B;       /* Amber: Primary accent/buttons */
+  --color-accent-text: #0F172A;  /* CRITICAL: Text on Amber MUST use Midnight, never white */
+}
+
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-text);
     margin: 0;
     padding: 0;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Headlines & Subheads: Bricolage Grotesque */
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /* Body, Buttons, Labels: DM Sans */
+  p, body, button, input, select, textarea, label, .font-text {
+    font-family: var(--font-text);
+  }
+
+  /* CRITICAL RULE: Any text placed on top of "Amber" backgrounds MUST use "Midnight" (#0F172A), never white */
+  .bg-amber,
+  .bg-amber-500,
+  .bg-primary,
+  button.bg-primary,
+  button.bg-amber-500,
+  a.bg-primary,
+  .btn-amber {
+    color: #0F172A !important;
+  }
+}
+
+/* ==========================================
+   TIPped Logo Styles & Responsive Brackets
+   ========================================== */
+.tipped-brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  padding: 0;
+}
+
+.tipped-logo-container {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.tipped-logo-brackets {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.corner-tl { transform-origin: top left; }
+.corner-tr { transform-origin: top right; }
+.corner-bl { transform-origin: bottom left; }
+.corner-br { transform-origin: bottom right; }
+
+.tipped-brand:hover .corner-tl { transform: translate(-6px, -6px); }
+.tipped-brand:hover .corner-tr { transform: translate(6px, -6px); }
+.tipped-brand:hover .corner-bl { transform: translate(-6px, 6px); }
+.tipped-brand:hover .corner-br { transform: translate(6px, 6px); }
+
+/* Responsive Logo: below 32px drop the four brackets and render center pin only */
+.tipped-logo-container.compact .tipped-logo-brackets,
+.logo-compact .tipped-logo-brackets,
+.logo-below-32 .tipped-logo-brackets {
+  display: none !important;
+}
+
+@container (max-height: 31px) or (max-width: 31px) {
+  .tipped-logo-brackets {
+    display: none !important;
   }
 }
 
@@ -25,218 +135,17 @@
   -webkit-backface-visibility: hidden;
 }
 
-/* ==========================================
-   TIPped Logo Styles & Animations
-   ========================================== */
-.landing-brand,
-.tipped-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
-  text-decoration: none;
-  color: inherit;
-}
-
-.landing-brand:focus-visible,
-.tipped-brand:focus-visible {
-  outline: 3px solid rgba(245, 158, 11, 0.72);
-  outline-offset: 3px;
-  border-radius: 6px;
-}
-
-.tipped-logo {
-  display: block;
-  width: 190px;
-  height: 57px;
-  flex: 0 0 auto;
-  overflow: visible;
-  border: 0;
-  background: transparent;
-}
-
-.tipped-logo.h-8 { height: 2rem; width: auto; }
-.tipped-logo.h-9 { height: 2.25rem; width: auto; }
-.tipped-logo.h-10 { height: 2.5rem; width: auto; }
-
-.tipped-logo-wordmark tspan:last-child {
-  fill: #64748b;
-  transition: fill 0.2s ease;
-}
-
-.dark .tipped-logo-wordmark tspan:last-child {
-  fill: #cbd5e1;
-}
-
-.tipped-logo-frame {
-  transition: stroke 0.22s ease;
-}
-
-.tipped-logo-corner {
-  transform-box: fill-box;
-  transform-origin: center;
-  transition: transform 0.24s cubic-bezier(0.2, 0.75, 0.25, 1);
-}
-
-.tipped-logo-detail {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.tipped-brand:hover .tipped-logo-frame,
-.tipped-brand:focus-visible .tipped-logo-frame,
-.landing-brand:hover .tipped-logo-frame,
-.landing-brand:focus-visible .tipped-logo-frame,
-.tipped-logo:hover .tipped-logo-frame {
-  stroke: #FBBF24;
-}
-
-.tipped-brand:hover .corner-tl,
-.tipped-brand:focus-visible .corner-tl,
-.landing-brand:hover .corner-tl,
-.landing-brand:focus-visible .corner-tl,
-.tipped-logo:hover .corner-tl {
-  transform: translate(-2px, -2px);
-}
-
-.tipped-brand:hover .corner-tr,
-.tipped-brand:focus-visible .corner-tr,
-.landing-brand:hover .corner-tr,
-.landing-brand:focus-visible .corner-tr,
-.tipped-logo:hover .corner-tr {
-  transform: translate(2px, -2px);
-}
-
-.tipped-brand:hover .corner-bl,
-.tipped-brand:focus-visible .corner-bl,
-.landing-brand:hover .corner-bl,
-.landing-brand:focus-visible .corner-bl,
-.tipped-logo:hover .corner-bl {
-  transform: translate(-2px, 2px);
-}
-
-.tipped-brand:hover .corner-br,
-.tipped-brand:focus-visible .corner-br,
-.landing-brand:hover .corner-br,
-.landing-brand:focus-visible .corner-br,
-.tipped-logo:hover .corner-br {
-  transform: translate(2px, 2px);
-}
-
-.tipped-brand:hover .tipped-logo-hvac,
-.tipped-brand:focus-visible .tipped-logo-hvac,
-.landing-brand:hover .tipped-logo-hvac,
-.landing-brand:focus-visible .tipped-logo-hvac,
-.tipped-logo:hover .tipped-logo-hvac {
-  animation: tipped-hvac-sway 2.2s ease-in-out infinite alternate;
-}
-
-.tipped-brand:hover .tipped-logo-bolt,
-.tipped-brand:focus-visible .tipped-logo-bolt,
-.landing-brand:hover .tipped-logo-bolt,
-.landing-brand:focus-visible .tipped-logo-bolt,
-.tipped-logo:hover .tipped-logo-bolt {
-  animation: tipped-bolt-bob 2.1s ease-in-out 0.12s infinite;
-}
-
-.tipped-brand:hover .tipped-logo-chemical,
-.tipped-brand:focus-visible .tipped-logo-chemical,
-.landing-brand:hover .tipped-logo-chemical,
-.landing-brand:focus-visible .tipped-logo-chemical,
-.tipped-logo:hover .tipped-logo-chemical {
-  animation: tipped-flask-rock 2.8s ease-in-out 0.24s infinite alternate;
-}
-
-.tipped-brand:hover .tipped-logo-flame,
-.tipped-brand:focus-visible .tipped-logo-flame,
-.landing-brand:hover .tipped-logo-flame,
-.landing-brand:focus-visible .tipped-logo-flame,
-.tipped-logo:hover .tipped-logo-flame {
-  animation: tipped-flame-flicker 1.6s ease-in-out 0.36s infinite alternate;
-}
-
-@keyframes tipped-hvac-sway {
-  from {
-    transform: rotate(-1.5deg);
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
   }
-  to {
-    transform: rotate(1.5deg) translateY(-0.6px);
-  }
-}
-
-@keyframes tipped-bolt-bob {
-  0%, 100% {
+  100% {
+    opacity: 1;
     transform: translateY(0);
   }
-  50% {
-    transform: translateY(-1px) scale(1.02);
-  }
 }
 
-@keyframes tipped-flask-rock {
-  from {
-    transform: rotate(-1.5deg);
-  }
-  to {
-    transform: rotate(1.5deg);
-  }
-}
-
-@keyframes tipped-flame-flicker {
-  from {
-    transform: scale(0.98);
-  }
-  to {
-    transform: scale(1.02);
-  }
-}
-
-@media (max-width: 760px) {
-  .tipped-logo {
-    width: 145px;
-    height: 43.5px;
-  }
-}
-
-@media (max-width: 520px) {
-  .tipped-logo {
-    width: 118px;
-    height: 35.4px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tipped-brand:hover .tipped-logo-corner,
-  .tipped-brand:focus-visible .tipped-logo-corner,
-  .landing-brand:hover .tipped-logo-corner,
-  .landing-brand:focus-visible .tipped-logo-corner,
-  .tipped-logo:hover .tipped-logo-corner {
-    transform: none !important;
-    transition: none !important;
-  }
-  .tipped-brand:hover .tipped-logo-hvac,
-  .tipped-brand:focus-visible .tipped-logo-hvac,
-  .tipped-brand:hover .tipped-logo-bolt,
-  .tipped-brand:focus-visible .tipped-logo-bolt,
-  .tipped-brand:hover .tipped-logo-chemical,
-  .tipped-brand:focus-visible .tipped-logo-chemical,
-  .tipped-brand:hover .tipped-logo-flame,
-  .tipped-brand:focus-visible .tipped-logo-flame,
-  .landing-brand:hover .tipped-logo-hvac,
-  .landing-brand:focus-visible .tipped-logo-hvac,
-  .landing-brand:hover .tipped-logo-bolt,
-  .landing-brand:focus-visible .tipped-logo-bolt,
-  .landing-brand:hover .tipped-logo-chemical,
-  .landing-brand:focus-visible .tipped-logo-chemical,
-  .landing-brand:hover .tipped-logo-flame,
-  .landing-brand:focus-visible .tipped-logo-flame,
-  .tipped-logo:hover .tipped-logo-hvac,
-  .tipped-logo:hover .tipped-logo-bolt,
-  .tipped-logo:hover .tipped-logo-chemical,
-  .tipped-logo:hover .tipped-logo-flame {
-    animation: none !important;
-  }
+.animate-fade-in {
+  animation: fadeInScale 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

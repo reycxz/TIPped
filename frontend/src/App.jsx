@@ -11,6 +11,7 @@ import AdminQueue from './pages/AdminQueue';
 import Analytics from './pages/Analytics';
 import Profile from './pages/Profile';
 import ArchivedReports from './pages/ArchivedReports';
+import CampusPage from './pages/CampusPage';
 import { getMe } from './api/auth';
 
 export default function App() {
@@ -77,6 +78,10 @@ export default function App() {
         />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="/register" element={<Navigate to="/" replace />} />
+        <Route
+          path="/campus"
+          element={<CampusPage currentUser={currentUser} onLogout={handleLogout} />}
+        />
 
         {/* Authenticated User Routes - ProtectedLayout enforces navbar visibility */}
         <Route element={<ProtectedLayout user={currentUser} onLogout={handleLogout} />}>

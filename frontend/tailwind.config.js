@@ -8,15 +8,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#0F172A',
-        surface: '#1E293B',
+        midnight: '#0F172A',
+        mist: '#F8FAFC',
+        amber: {
+          DEFAULT: '#F59E0B',
+          500: '#F59E0B',
+        },
+        slate: {
+          brand: '#647488',
+        },
+        honey: '#FDE68A',
+        ember: '#D97706',
+        background: 'var(--bg-primary)',
+        text: 'var(--text-primary)',
+        surface: 'var(--bg-surface)',
         primary: '#F59E0B',
-        text: '#F8FAFC',
-        muted: '#94A3B8',
+        muted: '#647488',
         pending: '#F59E0B',
         inProgress: '#38BDF8',
         'in-progress': '#38BDF8',
         resolved: '#10B981',
+      },
+      fontFamily: {
+        display: ["'Bricolage Grotesque'", 'sans-serif'],
+        sans: ["'DM Sans'", 'sans-serif'],
+        text: ["'DM Sans'", 'sans-serif'],
       },
     },
   },

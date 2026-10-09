@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TIP Manila Campus Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#F8FAFC;--pn:#fff;--ink:#0F172A;--mut:#475569;--ln:#CBD5E1;--gd:#E8EDF3;--rd:#C5D0DD;--bl:#AEBBCC;--bh:#94A3B8;--op:#FFF3D1;--acc:#F59E0B;--sh:rgba(15,23,42,.18);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0B1220;--pn:#111A2E;--ink:#F1F5F9;--mut:#A7B3C6;--ln:#26324A;--gd:#142038;--rd:#22304A;--bl:#33445F;--bh:#475A7A;--op:#3A3526;--sh:rgba(0,0,0,.5)}}
+:root[data-theme="dark"]{--bg:#0B1220;--pn:#111A2E;--ink:#F1F5F9;--mut:#A7B3C6;--ln:#26324A;--gd:#142038;--rd:#22304A;--bl:#33445F;--bh:#475A7A;--op:#3A3526;--sh:rgba(0,0,0,.5)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;height:100%;position:relative;overflow:hidden;background:var(--bg);color:var(--ink);font:400 15px 'DM Sans',system-ui,sans-serif}
+button{font-family:inherit;cursor:pointer}
+.bar{position:absolute;left:0;right:0;top:0;z-index:5;display:flex;gap:10px 12px;align-items:center;flex-wrap:wrap;padding:12px 16px;pointer-events:none}
+.bar>*{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:10px;font:800 20px 'Bricolage Grotesque',system-ui,sans-serif;letter-spacing:-.02em}
+.seg{display:flex;background:var(--pn);border:1px solid var(--ln);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;color:var(--mut);font-weight:700;font-size:14px;padding:8px 16px;border-radius:999px}
+.seg button.on{background:var(--acc);color:#0F172A}
+.sw{position:relative;flex:1;min-width:190px;max-width:400px}
+input{width:100%;box-sizing:border-box;height:42px;border:1.5px solid var(--ln);border-radius:14px;background:var(--pn);color:var(--ink);padding:0 14px;font:500 15px 'DM Sans',system-ui,sans-serif}
+input:focus{outline:0;border-color:var(--acc);box-shadow:0 0 0 3px rgba(245,158,11,.28)}
+.dd{position:absolute;top:46px;left:0;right:0;background:var(--pn);border:1px solid var(--ln);border-radius:14px;box-shadow:0 14px 30px var(--sh);overflow:hidden;display:none}
+.dd button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);padding:10px 14px;font-size:14px;font-weight:500}
+.dd button:hover,.dd button:focus{background:var(--gd);outline:0}
+.dd small{display:block;color:var(--mut);font-size:12px;margin-top:1px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;flex-basis:100%}
+.chips button{border:1px solid var(--ln);background:var(--pn);color:var(--ink);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:500}
+.chips button:hover{border-color:var(--acc)}
+#map{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;user-select:none}
+#map.drg{cursor:grabbing}
+.gd{fill:var(--gd);stroke:var(--ln);stroke-width:3}
+.rd{fill:none;stroke:var(--rd);stroke-linecap:butt}
+.rl{font:700 22px 'DM Sans',system-ui,sans-serif;letter-spacing:5px;fill:var(--mut);text-anchor:middle;opacity:.8}
+.p{cursor:pointer;transition:opacity .2s;outline:0}
+.p polygon{fill:var(--bl);stroke:var(--bh);stroke-width:2;transition:fill .15s}
+.p.o polygon{fill:var(--op)}
+.p:hover polygon,.p:focus-visible polygon{fill:var(--bh)}
+.p.sel polygon{fill:var(--acc);stroke:#B45309;stroke-width:4}
+.lb{font:700 19px 'DM Sans',system-ui,sans-serif;fill:var(--ink);stroke:var(--bg);stroke-width:5px;paint-order:stroke;text-anchor:middle;pointer-events:none}
+.p.sel .lb{fill:#0F172A;stroke:var(--acc)}
+#map.has .p:not(.sel){opacity:.45}
+.gate{cursor:pointer;outline:0}
+.gate rect{fill:#22C55E;stroke:var(--bg);stroke-width:3}
+.gate.sel rect{fill:var(--acc)}
+.gate text{font:700 14px 'DM Sans',system-ui,sans-serif;fill:#052e16;text-anchor:middle;pointer-events:none}
+.ring{fill:none;stroke:#22C55E;stroke-width:3;transform-box:fill-box;transform-origin:center;animation:pl 2.4s ease-out infinite;pointer-events:none}
+@keyframes pl{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(2.4)}}
+@media (prefers-reduced-motion:reduce){.ring{animation:none;opacity:0}}
+#pn{position:absolute;right:16px;top:104px;width:330px;max-height:calc(100% - 124px);overflow:auto;box-sizing:border-box;background:var(--pn);border:1px solid var(--ln);border-radius:20px;padding:20px;box-shadow:0 18px 40px var(--sh);z-index:4}
+.k{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#B45309;margin:0 0 6px}
+:root[data-theme="dark"] .k{color:#FBBF24}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .k{color:#FBBF24}}
+h2{font:800 28px/1.1 'Bricolage Grotesque',system-ui,sans-serif;letter-spacing:-.02em;margin:0 0 10px}
+.pill{display:inline-block;background:var(--gd);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700;margin-right:6px}
+.fl{display:flex;gap:6px;margin:16px 0 12px;flex-wrap:wrap}
+.fl button{width:38px;height:38px;border:1.5px solid var(--ln);background:none;color:var(--ink);border-radius:12px;font-weight:700}
+.fl button.on{background:var(--acc);border-color:var(--acc);color:#0F172A}
+ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+li{display:flex;gap:10px;align-items:flex-start;line-height:1.35}
+li:before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--acc);margin-top:6px}
+.rep{margin-top:18px;width:100%;height:48px;border:0;border-radius:14px;background:var(--acc);color:#0F172A;font-size:16px;font-weight:700}
+.rep:hover{background:#D97706}
+.rep:focus-visible,.x:focus-visible,.zc button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.x{float:right;width:34px;height:34px;border:1.5px solid var(--ln);background:none;color:var(--ink);border-radius:10px;display:grid;place-items:center}
+.rc{display:flex;align-items:flex-start;gap:10px;margin:6px 0 18px;font:800 44px/1 'Bricolage Grotesque',system-ui,sans-serif}
+.rc div{display:flex;flex-direction:column;gap:6px}
+.rc i{font:700 11px 'DM Sans',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-style:normal}
+.cl{display:flex;flex-direction:column;gap:2px}
+.cl button{display:flex;gap:12px;align-items:baseline;border:0;background:none;color:var(--ink);text-align:left;padding:7px 8px;border-radius:10px;font-size:15px}
+.cl button:hover{background:var(--gd)}
+.cl b{width:46px;flex:none;color:#B45309}
+:root[data-theme="dark"] .cl b{color:#FBBF24}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .cl b{color:#FBBF24}}
+.cl small{color:var(--mut)}
+.zc{position:absolute;left:16px;bottom:16px;z-index:4;display:flex;flex-direction:column;gap:6px}
+.zc button{width:42px;height:42px;border:1px solid var(--ln);background:var(--pn);color:var(--ink);border-radius:12px;font-size:22px;display:grid;place-items:center;box-shadow:0 6px 16px var(--sh)}
+#tt{position:fixed;z-index:9;pointer-events:none;background:var(--ink);color:var(--bg);padding:5px 10px;border-radius:8px;font-size:13px;font-weight:700;display:none}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;display:none;z-index:9;max-width:90%}
+@media (max-width:720px){
+.brand span{display:none}
+#pn{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:44%}
+.zc{bottom:auto;top:132px;left:auto;right:12px}
+.zc button{width:38px;height:38px}
+}
+</style></head>
+<body>
+<div class="bar">
+<div class="brand"><svg width="34" height="34" viewBox="0 0 400 400" aria-hidden="true"><rect width="400" height="400" rx="60" fill="#0F172A"/><defs><linearGradient id="lg" x1=".1" y1=".05" x2=".9" y2=".95"><stop offset="0" stop-color="#FDE68A"/><stop offset="1" stop-color="#D97706"/></linearGradient></defs><g fill="none" stroke="#F59E0B" stroke-width="24" stroke-linecap="round"><path d="M66 140V76a10 10 0 0 1 10-10h64"/><path d="M260 66h64a10 10 0 0 1 10 10v64"/><path d="M66 260v64a10 10 0 0 0 10 10h64"/><path d="M260 334h64a10 10 0 0 0 10-10v-64"/></g><path d="M200 92C154 92 118 128 118 174c0 52 56 100 82 126 26-26 82-74 82-126 0-46-36-82-82-82z" fill="url(#lg)"/><g transform="translate(0 -4)" fill="#0F172A"><circle cx="200" cy="154" r="15"/><path d="M180 238V204a20 20 0 0 1 40 0v34a8 8 0 0 1-8 8h-24a8 8 0 0 1-8-8z"/></g></svg><span>Campus Map</span></div>
+<div class="seg" role="tablist" aria-label="Campus"><button id="b-Casal" class="on" role="tab">Casal</button><button id="b-Arlegui" role="tab">Arlegui</button></div>
+<div class="sw"><input id="q" type="search" placeholder="Search a place, office, or room (F-306)" autocomplete="off" aria-label="Search"><div class="dd" id="dd"></div></div>
+<div class="chips" id="chips"></div>
+</div>
+<svg id="map" role="group" aria-label="TIP Manila campus map" xmlns="http://www.w3.org/2000/svg"></svg>
+<div class="zc"><button id="zi" aria-label="Zoom in">+</button><button id="zo" aria-label="Zoom out">&minus;</button><button id="zr" aria-label="Reset view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button></div>
+<aside id="pn" aria-live="polite"></aside>
+<div id="tt"></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const R=(x,y,w,h)=>`${x},${y} ${x+w},${y} ${x+w},${y+h} ${x},${y+h}`;
+const P=[
+{id:'F',n:"Founder's Building",k:'Building',code:'F',c:'Casal',pts:R(435,196,257,94),l:[563,248],fl:{1:["OSA","Guidance","Registrar","Tellering","SRO"],2:["Human Resource"],3:["Classrooms"],4:["College of Business Education"],5:["Casal Library"],6:["NSTP"]}},
+{id:'C',n:'Building 2',k:'Building',code:'C',c:'Casal',pts:'380,300 470,342 320,688 240,625',l:[350,490],fl:{1:["Chemical Engineering Department"],2:["Math & Physics Department","OVPSAS","College of Arts"],3:["Architecture Department"]}},
+{id:'gar',n:'Casal Garden',t:'Casal|Garden',k:'Open area',o:1,c:'Casal',pts:R(530,328,125,70),l:[593,360]},
+{id:'hub',n:'Student Hub',t:'Student|Hub',k:'Facility',c:'Casal',pts:R(693,270,49,138),l:[717,342]},
+{id:'sec',n:'Security',k:'Facility',c:'Casal',pts:R(675,468,60,50),l:[717,497]},
+{id:'sta',n:'Study Area',t:'Study|Area',k:'Open area',o:1,c:'Casal',pts:R(420,478,230,195),l:[585,570]},
+{id:'can',n:'Canteen',k:'Facility',c:'Casal',pts:'445,490 515,490 515,660 465,660 465,625 445,625',l:[480,570]},
+{id:'PE',n:'PE Center',t:'PE|Center',k:'Building',code:'PE',c:'Casal',pts:R(672,448,160,250),l:[780,615]},
+{id:'cli',n:'Clinic',k:'Facility',c:'Casal',pts:R(677,703,60,52),l:[707,735]},
+{id:'ces',n:'CES',k:'Facility',c:'Casal',pts:R(740,703,50,54),l:[765,735]},
+{id:'ann',n:'PE Center Annex',t:'PE Center|Annex',k:'Building',c:'Casal',pts:'225,665 362,705 335,795 210,740',l:[286,730]},
+{id:'b3',n:'Building 3',t:'Building|3',k:'Building',c:'Casal',pts:R(405,702,60,110),l:[434,757]},
+{id:'PC5',n:'PC 5',k:'Building',code:'PC-5',d:'Front of Study Area',c:'Casal',pts:R(565,717,55,55),l:[592,748],fl:{1:["Seminar Room"]}},
+{id:'PC12',n:'PC 12',k:'Building',code:'PC-12',d:'Next to Chapel',c:'Casal',pts:R(632,775,108,75),l:[686,826],fl:{1:["Chapel","Seminar Room"],2:["OVPAA"]}},
+{id:'cha',n:'Chapel',k:'Facility',c:'Casal',pts:R(742,775,58,60),l:[771,810]},
+{id:'con',n:'Congregating Area',t:'Congregating|Area',k:'Open area',o:1,c:'Casal',pts:'808,755 890,752 920,785 928,905 822,910',l:[868,810]},
+{id:'A',n:'Arlegui Campus',t:'Arlegui|Campus',k:'Building',code:'A',c:'Arlegui',pts:'1045,1495 1105,1478 1120,1510 1300,1462 1365,1690 1305,1780 1140,1815',l:[1215,1650],fl:{1:["Canteen","Study Area","Clinic"],2:["College of Computer Studies","OVPAA","Chapel","CEA Dean","OSA","QMO"],3:["Computer Engineering Department","Electrical Engineering Department","Electronics Engineering Department"],4:["Civil Engineering Department","Industrial Engineering Department","Mechanical Engineering Department"],5:["Arlegui Library"],6:["Teresita U. Quirino Hall","Anniversary Hall"]}},
+{id:'g1',g:1,n:'Gate 1',k:'Gate',c:'Casal',x:915,y:920},
+{id:'g2',g:1,n:'Gate 2',k:'Gate',c:'Casal',x:358,y:822},
+{id:'g3',g:1,n:'Gate 3',k:'Gate',c:'Casal',x:790,y:432},
+{id:'ga',g:1,n:'Arlegui Gate',t:'GATE',k:'Gate',c:'Arlegui',x:1358,y:1560}
+];
+const svg=$('#map'),pn=$('#pn'),q=$('#q'),dd=$('#dd');
+let vb={x:0,y:0,w:1200,h:900},sel=null,fl=0,moved=0,raf,res=[],camp='Casal';
+const cw=()=>svg.clientWidth||1,ch=()=>svg.clientHeight||1;
+const apply=()=>svg.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+function tgt(cx,cy,w){const h=w*ch()/cw(),d=cw()>720;return{x:cx+(d?340/cw()*w/2:0)-w/2,y:cy+(d?0:h*.18)-h/2,w,h}}
+function fly(t){cancelAnimationFrame(raf);const a={...vb},s=performance.now();const st=n=>{let k=Math.min(1,(n-s)/650);k=1-Math.pow(1-k,3);for(const z of['x','y','w','h'])vb[z]=a[z]+(t[z]-a[z])*k;apply();if(k<1)raf=requestAnimationFrame(st)};raf=requestAnimationFrame(st)}
+const VIEW={Casal:[640,520,1180],Arlegui:[1230,1650,820]};
+function zoomAt(px,py,f){const nw=Math.min(2600,Math.max(260,vb.w*f)),nh=nw*ch()/cw();vb.x+=(px/cw())*(vb.w-nw);vb.y+=(py/ch())*(vb.h-nh);vb.w=nw;vb.h=nh;apply()}
+function build(){
+let s=`<polygon class="gd" points="180,755 423,150 730,150 757,203 835,508 832,750 895,752 1040,845 1048,965 822,915 635,852 465,815 335,795"/>`;
+s+=`<polyline class="rd" stroke-width="40" stroke-linejoin="round" points="1203,55 1265,1000 1330,1250 1490,1880"/><polyline class="rd" stroke-width="85" points="-60,762 1285,1067"/>`;
+s+=`<text class="rl" dy="7" transform="translate(560 903) rotate(12.8)">P. CASAL ST.</text><text class="rl" dy="7" transform="translate(1299 1130) rotate(75.4)">ARLEGUI ST.</text><text class="rl" dy="7" transform="translate(1444 1700) rotate(75.8)">ARLEGUI ST.</text>`;
+P.filter(p=>!p.g).forEach(p=>{const L=(p.t||p.n).split('|');s+=`<g class="p${p.o?' o':''}" data-id="${p.id}" tabindex="0" role="button" aria-label="${p.n}"><polygon points="${p.pts}"/><text class="lb" x="${p.l[0]}" y="${p.l[1]+6}">${L.map((t,i)=>`<tspan x="${p.l[0]}" dy="${i?21:-(L.length-1)*10.5}">${t}</tspan>`).join('')}</text></g>`});
+P.filter(p=>p.g).forEach(p=>{s+=`<g class="gate" data-id="${p.id}" tabindex="0" role="button" aria-label="${p.n}"><circle class="ring" cx="${p.x}" cy="${p.y}" r="16"/><rect x="${p.x-31}" y="${p.y-12}" width="62" height="24" rx="6"/><text x="${p.x}" y="${p.y+5}">${p.t||p.n.toUpperCase()}</text></g>`});
+svg.innerHTML=s}
+function bb(p){if(p.g)return{cx:p.x,cy:p.y,w:40};const n=p.pts.split(/[ ,]/).map(Number),xs=n.filter((_,i)=>i%2==0),ys=n.filter((_,i)=>i%2);const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);return{cx:(x0+x1)/2,cy:(y0+y1)/2,w:Math.max(x1-x0,y1-y0)}}
+function setCamp(c){camp=c;$('#b-Casal').classList.toggle('on',c=='Casal');$('#b-Arlegui').classList.toggle('on',c=='Arlegui')}
+function pick(id,f,noFly){
+sel=id?P.find(p=>p.id===id):null;
+fl=sel&&sel.fl?(f&&sel.fl[f]?f:+Object.keys(sel.fl)[0]):0;
+svg.querySelectorAll('.p,.gate').forEach(g=>g.classList.toggle('sel',!!sel&&g.dataset.id===sel.id));
+svg.classList.toggle('has',!!sel);
+if(sel){setCamp(sel.c);if(!noFly){const b=bb(sel);fly(tgt(b.cx,b.cy,Math.max(b.w*2.6,480)))}}
+render()}
+function render(){
+if(!sel){pn.innerHTML=`<div class="k">T.I.P.ian pro tip</div><div class="rc"><div><span style="color:var(--acc)">F</span><i>Building</i></div><span>-</span><div><span style="color:#0EA5E9">3</span><i>Floor</i></div><div><span>06</span><i>Room</i></div></div><div class="k">Building codes</div><div class="cl">${[['F','F',''],['C','C',''],['A','A',''],['PC5','PC 5','Front of Study Area'],['PC12','PC 12','Next to Chapel'],['PE','PE','']].map(([i,c,d])=>{const p=P.find(x=>x.id===i);return `<button data-pick="${i}"><b>${c}</b><span>${p.n}${d?` <small>${d}</small>`:''}</span></button>`}).join('')}</div>`;return}
+const p=sel,fs=p.fl?Object.keys(p.fl):[];
+pn.innerHTML=`<button class="x" data-x aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="k">${p.k} · ${p.c} Campus</div><h2>${p.n}</h2>${p.code?`<span class="pill">Code ${p.code}</span>`:''}${p.d?`<span class="pill">${p.d}</span>`:''}${fs.length?`<div class="fl" role="tablist" aria-label="Floor">${fs.map(f=>`<button data-f="${f}" class="${+f==fl?'on':''}" aria-label="Floor ${f}">${f}</button>`).join('')}</div><div class="k">Floor ${fl} · ${p.code}-${fl}xx</div><ul>${p.fl[fl].map(o=>`<li>${o}</li>`).join('')}</ul>`:''}<button class="rep" data-rep>Report an issue here</button>`}
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',2600)}
+function report(){const loc=sel.n+(sel.fl?`, Floor ${fl}`:'')+`, ${sel.c} Campus`;window.dispatchEvent(new CustomEvent('tip:location',{detail:loc}));try{navigator.clipboard.writeText(loc)}catch(e){}toast('Location ready: '+loc)}
+pn.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.x!==undefined)pick(null);else if(t.dataset.pick)pick(t.dataset.pick);else if(t.dataset.f){fl=+t.dataset.f;render()}else if(t.dataset.rep!==undefined)report()});
+const IDX=[];P.forEach(p=>{IDX.push({l:p.n,s:(p.code?p.code+' · ':'')+p.c+' Campus',id:p.id});Object.entries(p.fl||{}).forEach(([f,a])=>a.forEach(o=>IDX.push({l:o,s:`${p.n} · Floor ${f}`,id:p.id,f:+f})))});
+function search(v){v=v.trim().toLowerCase();if(!v)return[];const out=[];const m=v.toUpperCase().replace(/[\s-]/g,'').match(/^(F|C|A|PC5|PC12)(\d)(\d\d)$/);
+if(m){const p=P.find(x=>x.id===m[1]),ok=p.fl&&p.fl[m[2]];out.push({l:`${p.code}-${m[2]}${m[3]}`,s:ok?`${p.n} · Floor ${m[2]} · Room ${m[3]}`:`${p.n} · Floor ${m[2]} is not listed`,id:p.id,f:+m[2]})}
+return out.concat(IDX.filter(i=>i.l.toLowerCase().includes(v)).sort((a,b)=>(b.l.toLowerCase().startsWith(v)-a.l.toLowerCase().startsWith(v))).slice(0,7))}
+function showDD(){res=search(q.value);dd.style.display=res.length?'block':'none';dd.innerHTML=res.map((r,i)=>`<button data-i="${i}">${r.l}<small>${r.s}</small></button>`).join('')}
+function go(r){if(!r)return;pick(r.id,r.f);q.value='';dd.style.display='none';q.blur()}
+q.addEventListener('input',showDD);
+q.addEventListener('keydown',e=>{if(e.key==='Enter')go(res[0]);if(e.key==='Escape'){q.value='';dd.style.display='none'}});
+dd.addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(res[+b.dataset.i])});
+document.addEventListener('click',e=>{if(!e.target.closest('.sw'))dd.style.display='none'});
+$('#chips').innerHTML=['Registrar','Clinic','Canteen','Library','Chapel','F-306'].map(c=>`<button>${c}</button>`).join('');
+$('#chips').addEventListener('click',e=>{const b=e.target.closest('button');if(b){q.value=b.textContent;showDD();if(res.length===1||b.textContent=='F-306')go(res[0]);else q.focus()}});
+$('#b-Casal').onclick=()=>{pick(null);setCamp('Casal');fly(tgt(...VIEW.Casal))};
+$('#b-Arlegui').onclick=()=>{pick(null);setCamp('Arlegui');fly(tgt(...VIEW.Arlegui))};
+$('#zi').onclick=()=>zoomAt(cw()/2,ch()/2,.7);$('#zo').onclick=()=>zoomAt(cw()/2,ch()/2,1.4);
+$('#zr').onclick=()=>{pick(null);fly(tgt(...VIEW[camp]))};
+svg.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.offsetX,e.offsetY,e.deltaY>0?1.12:.89)},{passive:false});
+const ptr=new Map();let pd=0;
+svg.addEventListener('pointerdown',e=>{ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=0;cancelAnimationFrame(raf)});
+svg.addEventListener('pointermove',e=>{const p=ptr.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+if(ptr.size===1){moved+=Math.abs(dx)+Math.abs(dy);if(moved>5){svg.classList.add('drg');vb.x-=dx*vb.w/cw();vb.y-=dy*vb.h/ch();apply()}}
+else if(ptr.size===2){const [a,b]=[...ptr.values()],d=Math.hypot(a.x-b.x,a.y-b.y),r=svg.getBoundingClientRect();moved=99;if(pd)zoomAt((a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top,pd/d);pd=d}});
+const up=e=>{ptr.delete(e.pointerId);pd=0;svg.classList.remove('drg')};
+['pointerup','pointercancel','pointerleave'].forEach(n=>svg.addEventListener(n,up));
+svg.addEventListener('click',e=>{if(moved>5)return;const g=e.target.closest('[data-id]');pick(g?g.dataset.id:null)});
+svg.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const g=e.target.closest('[data-id]');if(g){e.preventDefault();pick(g.dataset.id)}}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&sel&&document.activeElement!==q)pick(null)});
+const tt=$('#tt');
+svg.addEventListener('mousemove',e=>{const g=e.target.closest('[data-id]');if(!g||ptr.size){tt.style.display='none';return}tt.textContent=P.find(p=>p.id===g.dataset.id).n;tt.style.display='block';tt.style.left=e.clientX+14+'px';tt.style.top=e.clientY+14+'px'});
+svg.addEventListener('mouseleave',()=>tt.style.display='none');
+addEventListener('resize',()=>{vb.h=vb.w*ch()/cw();apply()});
+build();vb=tgt(...VIEW.Casal);apply();render();
+</script>
+</body></html>

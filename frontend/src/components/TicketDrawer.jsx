@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { updateTicket, archiveReport } from '../api/tickets';
 import { getDepartments } from '../api/adminData';
 import { getMe } from '../api/auth';
 import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
+import CampusMap from './CampusMap/CampusMap';
 
 const DEFAULT_DEPARTMENTS = [
   'Maintenance',
@@ -34,6 +36,7 @@ export default function TicketDrawer({
   const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState('');
   const [zoomedImage, setZoomedImage] = useState(null);
+  const [showMapReadOnly, setShowMapReadOnly] = useState(false);
 
   // Resolve user from props, or fallback to session
   useEffect(() => {
@@ -153,8 +156,8 @@ export default function TicketDrawer({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end">
+  return createPortal(
+    <div className="fixed inset-0 w-screen h-screen z-[99999] bg-slate-900/80 backdrop-blur-sm flex justify-center items-center">
       <div className="w-full max-w-xl bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-200 transition-colors">
         {/* Header */}
         <div className="p-6 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between">
@@ -175,6 +178,14 @@ export default function TicketDrawer({
               <span className="flex items-center">
                 <MapPin className="w-3.5 h-3.5 mr-1" />
                 {ticket.campus} - {ticket.locationInfo?.room}
+                <button
+                  type="button"
+                  onClick={() => setShowMapReadOnly(true)}
+                  aria-label="View location on campus map"
+                  className="ml-1.5 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 underline decoration-amber-500/50 cursor-pointer font-medium"
+                >
+                  Map
+                </button>
               </span>
               <span className="flex items-center text-primary font-medium">
                 <Tag className="w-3.5 h-3.5 mr-1" />
@@ -387,6 +398,35 @@ export default function TicketDrawer({
           />
         </div>
       )}
-    </div>
+
+      {/* Read-Only Campus Map Modal */}
+      {showMapReadOnly && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center">
+          <div className="w-full max-w-6xl h-[85vh] flex flex-col bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
+                <MapPin className="w-4 h-4 text-amber-500" />
+                <span>Campus Map — {ticket.campus} {ticket.locationInfo?.room || ''}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMapReadOnly(false)}
+                aria-label="Close campus map"
+                className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 w-full relative h-full min-h-0 overflow-hidden">
+              <CampusMap
+                mode="readonly"
+                defaultLocation={ticket.location || (ticket.campus && ticket.locationInfo?.room ? `${ticket.campus} - ${ticket.locationInfo.room}` : ticket.location)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body
   );
 }

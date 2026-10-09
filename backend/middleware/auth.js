@@ -62,11 +62,12 @@ const requireStaffOrAdmin = (req, res, next) => {
 };
 
 const authorize = requireRole;
+const authMiddleware = verifyToken;
 
 module.exports = {
   verifyToken,
+  authMiddleware,
   requireRole,
   requireStaffOrAdmin,
-  authMiddleware,
   authorize
 };

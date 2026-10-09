@@ -9,9 +9,12 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  // Normalize user and role
-  const resolvedRole = (propUser?.role || (typeof userRole === 'string' ? userRole : userRole?.role) || 'User').toLowerCase();
-  const user = propUser ? { ...propUser, role: resolvedRole } : { role: resolvedRole };
+  // Normalize user and role - strictly identify authenticated users
+  const isAuthenticated = Boolean(propUser && (propUser._id || propUser.id || propUser.email || propUser.role));
+  const resolvedRole = isAuthenticated
+    ? (propUser.role || (typeof userRole === 'string' ? userRole : userRole?.role) || 'user').toLowerCase()
+    : null;
+  const user = isAuthenticated ? { ...propUser, role: resolvedRole } : null;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -66,19 +69,19 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
     }`;
 
   return (
-    <header className="w-full bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 transition-colors duration-200">
+    <header className="w-full bg-mist dark:bg-midnight text-midnight dark:text-mist border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Brand Logo & Navigation Links */}
         <div className="flex items-center space-x-8">
           <Link
-            to={isLanding ? '/' : user?.role === 'user' ? '/dashboard' : '/admin'}
+            to={!isAuthenticated || isLanding ? '/' : user?.role === 'user' ? '/dashboard' : '/admin'}
             className="landing-brand tipped-brand flex items-center focus:outline-none"
             aria-label="TIPped"
           >
-            <TippedLogo />
+            <TippedLogo className="h-9 w-auto" />
           </Link>
 
-          {!isLanding && (
+          {isAuthenticated && !isLanding && (
             <nav className="hidden md:flex items-center space-x-6">
               {/* User Navigation */}
               {user?.role === 'user' && (
@@ -112,8 +115,8 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
           )}
         </div>
 
-        {/* Right Section: Toggle for Landing or Settings Dropdown for Authenticated */}
-        {isLanding ? (
+        {/* Right Section: Theme Toggle for Guests/Landing or Settings Dropdown for Authenticated */}
+        {!isAuthenticated || isLanding ? (
           <button
             type="button"
             onClick={toggleDarkMode}
