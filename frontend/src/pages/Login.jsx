@@ -167,7 +167,7 @@ export default function Login({
   });
 
   const cardContent = (
-    <div className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 shadow-xl transition-colors duration-200">
+    <div data-hiw-signin-card="true" className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 shadow-xl transition-colors duration-200">
       {/* Header - 1-2 words only, no subtitles */}
       <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-6 text-center">
         Sign In
@@ -194,6 +194,7 @@ export default function Login({
           </label>
           <input
             type="email"
+            data-hiw-signin-email="true"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}

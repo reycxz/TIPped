@@ -18,6 +18,7 @@ import {
   ChartNoAxesColumn,
 } from 'lucide-react';
 import { io } from 'socket.io-client';
+import { useHeroOutOfView } from '../hooks/useHeroOutOfView';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ||
   (import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin);
@@ -33,6 +34,7 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
   const notificationsRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const navigate = useNavigate();
+  const isHeroOutOfView = useHeroOutOfView(isLanding);
 
   // Normalize user and role - strictly identify authenticated users
   const isAuthenticated = Boolean(propUser && (propUser._id || propUser.id || propUser.email || propUser.role));
@@ -133,6 +135,34 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
     }
   };
 
+  const handleSignInClick = () => {
+    const card = document.querySelector('[data-hiw-signin-card="true"]');
+    if (!card) return;
+    const email = document.querySelector('[data-hiw-signin-email="true"]');
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const navbarHeight = mobileMenuRef.current?.getBoundingClientRect().height || 0;
+    if (navbarHeight) card.style.scrollMarginTop = `${navbarHeight}px`;
+
+    const focusEmail = () => email?.focus({ preventScroll: true });
+    if (Math.abs(card.getBoundingClientRect().top - navbarHeight) < 1) {
+      window.requestAnimationFrame(focusEmail);
+      return;
+    }
+
+    const supportsScrollEnd = 'onscrollend' in document;
+    if (supportsScrollEnd) {
+      document.addEventListener('scrollend', focusEmail, { once: true });
+    }
+
+    card.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+
+    if (!supportsScrollEnd) window.setTimeout(focusEmail, 450);
+  };
+
   const navLinkClass = ({ isActive }) =>
     `text-sm font-medium transition-colors ${
       isActive
@@ -208,18 +238,29 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
 
         {/* Right Section: Theme Toggle for Guests/Landing or Settings Dropdown for Authenticated */}
         {!isAuthenticated || isLanding ? (
-          <button
-            type="button"
-            onClick={toggleDarkMode}
-            aria-label="Toggle theme"
-            className="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors focus:outline-none cursor-pointer"
-          >
-            {isDarkMode ? (
-              <Sun className="w-5 h-5 text-amber-500" />
-            ) : (
-              <Moon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+          <div className="flex items-center gap-2">
+            {isLanding && !isAuthenticated && isHeroOutOfView && (
+              <button
+                type="button"
+                onClick={handleSignInClick}
+                className="h-11 min-w-[44px] whitespace-nowrap rounded-lg border border-slate-300 bg-transparent px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 sm:text-sm"
+              >
+                Sign in
+              </button>
             )}
-          </button>
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              aria-label="Toggle theme"
+              className="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors focus:outline-none cursor-pointer"
+            >
+              {isDarkMode ? (
+                <Sun className="w-5 h-5 text-amber-500" />
+              ) : (
+                <Moon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              )}
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-1">
             {user?.role === 'user' && (
