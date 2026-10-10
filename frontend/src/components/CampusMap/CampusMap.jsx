@@ -10,6 +10,13 @@ import {
   formatLocationString
 } from '../../constants/campusData';
 
+const getParentPlaceId = (id) =>
+  ['cli', 'ces', 'sec'].includes(id)
+    ? 'PE'
+    : ['Canteen', 'Study Area', 'can'].includes(id)
+      ? 'sta'
+      : id;
+
 const CampusMap = ({
   mode = 'picker',
   defaultLocation = '',
@@ -18,6 +25,7 @@ const CampusMap = ({
 }) => {
   const [campus, setCampus] = useState('Casal');
   const [selectedPlace, setSelectedPlace] = useState(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [selectedFloor, setSelectedFloor] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -127,24 +135,35 @@ const CampusMap = ({
     (id, floorNum, noFly = false) => {
       if (!id) {
         setSelectedPlace(null);
+        setSelectedPlaceId(null);
         setSelectedFloor(null);
         return;
       }
 
       setMobileProTipOpen(false);
 
-      // Link Chapel polygon to PC 12 Building Floor 1 (Constraint 2)
-      const targetId = id === 'cha' ? 'PC12' : (id === 'can' ? 'sta' : id);
+      const targetId = id === 'cha'
+        ? 'PC12'
+        : id === 'Canteen'
+          ? 'can'
+          : ['Study Area', 'can'].includes(id)
+            ? 'sta'
+            : id;
       const targetFloor = id === 'cha' ? 1 : floorNum;
 
       const place = CAMPUS_PLACES.find((p) => p.id === targetId);
       if (!place) {
         setSelectedPlace(null);
+        setSelectedPlaceId(null);
         setSelectedFloor(null);
         return;
       }
 
       setSelectedPlace(place);
+      setSelectedPlaceId(
+        id === 'can' ? 'Canteen' :
+          id === 'sta' ? 'Study Area' : id
+      );
       const floors = place.fl ? Object.keys(place.fl).map(Number) : [];
       const resolvedFloor = place.fl
         ? targetFloor && place.fl[targetFloor]
@@ -158,23 +177,8 @@ const CampusMap = ({
         const bbox = calculateBoundingBox(place);
         flyTo(getTargetViewBox(bbox.cx, bbox.cy, Math.max(bbox.w * 2.6, 480)));
       }
-
-      // Instant populate form for Student Hub (Constraint 2)
-      if (targetId === 'hub') {
-        const locStr = 'Student Hub, Casal Campus';
-        if (typeof onLocationSelect === 'function') onLocationSelect(locStr);
-        if (typeof onSelect === 'function') onSelect(locStr);
-        window.dispatchEvent(new CustomEvent('tip:location', { detail: locStr }));
-        showToast('Location ready: Student Hub');
-      } else if (mode === 'picker' && id === 'cha') {
-        const locStr = formatLocationString(place, resolvedFloor || 1);
-        if (typeof onLocationSelect === 'function') onLocationSelect(locStr);
-        if (typeof onSelect === 'function') onSelect(locStr);
-        window.dispatchEvent(new CustomEvent('tip:location', { detail: locStr }));
-        showToast(`Location ready: ${locStr}`);
-      }
     },
-    [calculateBoundingBox, flyTo, getTargetViewBox, mode, onLocationSelect, onSelect, showToast]
+    [calculateBoundingBox, flyTo, getTargetViewBox]
   );
 
   const pick = pickPlace;
@@ -197,7 +201,9 @@ const CampusMap = ({
 
   const handleReport = () => {
     if (!selectedPlace) return;
-    const formattedLocation = formatLocationString(selectedPlace, selectedFloor);
+    const confirmedPlaceId = getParentPlaceId(selectedPlaceId || selectedPlace.id);
+    const confirmedPlace = CAMPUS_PLACES.find((place) => place.id === confirmedPlaceId) || selectedPlace;
+    const formattedLocation = formatLocationString(confirmedPlace, selectedFloor);
     if (typeof onLocationSelect === 'function') {
       onLocationSelect(formattedLocation);
     }
@@ -273,7 +279,9 @@ const CampusMap = ({
       if (id === 'cha') {
         pick('PC12');
       } else if (id === 'can') {
-        pick('sta');
+        pick('Canteen');
+      } else if (id === 'sta') {
+        pick('Study Area');
       } else {
         pick(id);
       }
@@ -288,7 +296,9 @@ const CampusMap = ({
       if (id === 'cha') {
         pick('PC12');
       } else if (id === 'can') {
-        pick('sta');
+        pick('Canteen');
+      } else if (id === 'sta') {
+        pick('Study Area');
       } else {
         pick(id);
       }
@@ -334,6 +344,7 @@ const CampusMap = ({
     if (!location) {
       setCampus('Casal');
       setSelectedPlace(null);
+      setSelectedPlaceId(null);
       setSelectedFloor(null);
       flyTo(getTargetViewBox(...CAMPUS_VIEWS.Casal));
       return;
@@ -366,7 +377,14 @@ const CampusMap = ({
       let placeId = null;
       let floor = null;
 
-      if (/\bchapel\b/i.test(location)) {
+      const subAreaMatch = location.match(/\b(clinic|ces|security)\b/i);
+      if (subAreaMatch) {
+        placeId = {
+          clinic: 'cli',
+          ces: 'ces',
+          security: 'sec'
+        }[subAreaMatch[1].toLowerCase()];
+      } else if (/\bchapel\b/i.test(location)) {
         placeId = 'cha';
       } else {
         const arleguiRoom = location.match(
@@ -524,13 +542,23 @@ const CampusMap = ({
 
         {/* Non-gate places */}
         {CAMPUS_PLACES.filter((p) => !p.g).map((p) => {
-          const isSelected = selectedPlace?.id === p.id || (selectedPlace?.id === 'PC12' && p.id === 'cha');
+          const renderedPlace = p.id === 'sec'
+            ? { ...p, pts: '772,462 820,462 820,500 772,500', l: [796, 481] }
+            : p;
+          const isSelected =
+            selectedPlaceId === p.id ||
+            (p.id === 'can' && selectedPlaceId === 'Canteen') ||
+            (p.id === 'sta' && selectedPlaceId === 'Study Area') ||
+            (selectedPlace?.id === 'PC12' && p.id === 'cha');
           const lines = (p.t || p.n).split('|');
-          const handleSelectPlace = () => {
+          const handleSelectPlace = (event) => {
+            event.stopPropagation();
             if (p.id === 'cha') {
               pick('PC12');
             } else if (p.id === 'can') {
-              pick('sta');
+              pick('Canteen');
+            } else if (p.id === 'sta') {
+              pick('Study Area');
             } else {
               pick(p.id);
             }
@@ -551,12 +579,28 @@ const CampusMap = ({
                 }
               }}
             >
-              <polygon points={p.pts} />
-              <text className="lb" x={p.l[0]} y={p.l[1] + 6}>
+              <polygon
+                points={renderedPlace.pts}
+                style={p.id === 'can'
+                  ? {
+                    fill: selectedPlaceId === 'Canteen' ? '#FBBF24' : '#1E293B',
+                    opacity: 1
+                  }
+                  : undefined}
+              />
+              <text
+                className="lb"
+                x={renderedPlace.l[0]}
+                y={renderedPlace.l[1] + 6}
+                style={{
+                  pointerEvents: 'none',
+                  ...(p.id === 'sec' ? { fontSize: '10px' } : {})
+                }}
+              >
                 {lines.map((text, i) => (
                   <tspan
                     key={i}
-                    x={p.l[0]}
+                    x={renderedPlace.l[0]}
                     dy={i ? 21 : -(lines.length - 1) * 10.5}
                   >
                     {text}
@@ -815,7 +859,7 @@ const CampusMap = ({
                 className="campus-map-rep"
                 onClick={handleReport}
               >
-                {mode === 'picker' ? 'Select this location' : 'Report an issue here'}
+                {mode === 'picker' ? 'Select Location' : 'Report an issue here'}
               </button>
             )}
           </>

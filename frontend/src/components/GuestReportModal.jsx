@@ -22,9 +22,22 @@ const campusConfig = {
     "Building 2 (C)": { prefix: "C", maxFloor: 3 },
     "PC 5": { prefix: "PC5", maxFloor: 1 },
     "PC 12": { prefix: "PC12", maxFloor: 2 },
-    "PE Center": { prefix: "PE", maxFloor: 1 }
+    "PE Center": { prefix: "PE", maxFloor: 1 },
+    "PE Center Annex": { prefix: "PEA", maxFloor: 1 },
+    "Student Hub": { prefix: "HUB", maxFloor: 1 },
+    "Study Area / Canteen": { prefix: "OA", maxFloor: 1 },
+    "Congregating Area": { prefix: "OA", maxFloor: 1 },
+    "Casal Garden": { prefix: "OA", maxFloor: 1 }
   }
 };
+
+const NON_ROOM_BUILDINGS = new Set([
+  'PE Center Annex',
+  'Student Hub',
+  'Study Area / Canteen',
+  'Congregating Area',
+  'Casal Garden'
+]);
 
 export default function GuestReportModal({
   isOpen = true,
@@ -61,14 +74,43 @@ export default function GuestReportModal({
       setBuilding("PC 5");
     } else if (locStr.includes("PC 12") || locStr.includes("PC-12")) {
       setBuilding("PC 12");
+    } else if (locStr.includes("PE Center Annex")) {
+      setBuilding("PE Center Annex");
+    } else if (locStr.includes("Clinic") || locStr.includes("CES") || locStr.includes("Security")) {
+      setBuilding("PE Center");
     } else if (locStr.includes("PE Center")) {
       setBuilding("PE Center");
+    } else if (locStr.includes("Student Hub")) {
+      setBuilding("Student Hub");
+    } else if (locStr.includes("Study Area / Canteen")) {
+      setBuilding("Study Area / Canteen");
+    } else if (locStr.includes("Congregating Area")) {
+      setBuilding("Congregating Area");
+    } else if (locStr.includes("Casal Garden")) {
+      setBuilding("Casal Garden");
     } else if (locStr.includes("Arlegui")) {
       setBuilding("Arlegui (A)");
     }
 
+    const matchedBuilding = Object.keys(campusConfig).flatMap((campusName) =>
+      Object.keys(campusConfig[campusName])
+    ).sort((a, b) => b.length - a.length)
+      .find((buildingName) => locStr.includes(buildingName));
+    const selectedBuilding = matchedBuilding ||
+      (locStr.includes("Clinic") || locStr.includes("CES") || locStr.includes("Security") ? "PE Center" :
+        locStr.includes("Founder's") ? "Founder's (F)" :
+          locStr.includes("Building 2") ? "Building 2 (C)" :
+            locStr.includes("PC 5") || locStr.includes("PC-5") ? "PC 5" :
+              locStr.includes("PC 12") || locStr.includes("PC-12") ? "PC 12" :
+                locStr.includes("Arlegui") ? "Arlegui (A)" : null);
+    if (selectedBuilding && NON_ROOM_BUILDINGS.has(selectedBuilding)) {
+      setFloor('1');
+      setRoom('');
+      setIsRoomSpecific(false);
+    }
+
     const floorMatch = locStr.match(/Floor\s+(\d+)/i);
-    if (floorMatch) {
+    if (floorMatch && !NON_ROOM_BUILDINGS.has(selectedBuilding)) {
       setFloor(floorMatch[1]);
       setIsRoomSpecific(false);
       setRoom('');
@@ -190,6 +232,13 @@ export default function GuestReportModal({
   const handleBuildingChange = (e) => {
     const newBuilding = e.target.value;
     setBuilding(newBuilding);
+    if (NON_ROOM_BUILDINGS.has(newBuilding)) {
+      setFloor('1');
+      setRoom('');
+      setIsRoomSpecific(false);
+      setFloorError('');
+      return;
+    }
     const bConfig = campusConfig[campus]?.[newBuilding];
     const newMaxFloor = bConfig?.maxFloor || 1;
     if (Number(floor) > newMaxFloor) {
