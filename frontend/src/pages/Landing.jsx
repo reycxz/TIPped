@@ -7,7 +7,7 @@ import Login from './Login';
 import Register from './Register';
 import { Camera, Image as ImageIcon, X } from 'lucide-react';
 
-export default function Landing({ onLoginSuccess }) {
+export default function Landing({ onLoginSuccess, onConsentRequired }) {
   const location = useLocation();
   const navigate = useNavigate();
   const cameraInputRef = useRef(null);
@@ -238,12 +238,14 @@ export default function Landing({ onLoginSuccess }) {
                   <Login
                     isEmbedded={true}
                     onLoginSuccess={onLoginSuccess}
+                    onConsentRequired={onConsentRequired}
                     onToggleRegister={() => flipTo(true)}
                   />
                 ) : (
                   <Register
                     isEmbedded={true}
                     onLoginSuccess={onLoginSuccess}
+                    onConsentRequired={onConsentRequired}
                     onToggleLogin={() => flipTo(false)}
                   />
                 )}

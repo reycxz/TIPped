@@ -17,6 +17,19 @@ const getParentPlaceId = (id) =>
       ? 'sta'
       : id;
 
+const NAMED_PLACE_IDS = {
+  Security: 'sec',
+  Clinic: 'cli',
+  CES: 'ces',
+  'PE Center Annex': 'ann',
+  Annex: 'ann',
+  'Casal Garden': 'gar',
+  'Student Hub': 'hub',
+  HUB: 'hub',
+  'Study Area': 'sta',
+  Canteen: 'can'
+};
+
 const CampusMap = ({
   mode = 'picker',
   defaultLocation = '',
@@ -142,13 +155,7 @@ const CampusMap = ({
 
       setMobileProTipOpen(false);
 
-      const targetId = id === 'cha'
-        ? 'PC12'
-        : id === 'Canteen'
-          ? 'can'
-          : ['Study Area', 'can'].includes(id)
-            ? 'sta'
-            : id;
+      const targetId = NAMED_PLACE_IDS[id] || (id === 'cha' ? 'PC12' : id);
       const targetFloor = id === 'cha' ? 1 : floorNum;
 
       const place = CAMPUS_PLACES.find((p) => p.id === targetId);
@@ -161,8 +168,7 @@ const CampusMap = ({
 
       setSelectedPlace(place);
       setSelectedPlaceId(
-        id === 'can' ? 'Canteen' :
-          id === 'sta' ? 'Study Area' : id
+        id === 'Canteen' || id === 'Study Area' ? id : targetId
       );
       const floors = place.fl ? Object.keys(place.fl).map(Number) : [];
       const resolvedFloor = place.fl
@@ -201,14 +207,46 @@ const CampusMap = ({
 
   const handleReport = () => {
     if (!selectedPlace) return;
-    const confirmedPlaceId = getParentPlaceId(selectedPlaceId || selectedPlace.id);
+    const pickedPlaceId = selectedPlaceId || selectedPlace.id;
+    const confirmedPlaceId = getParentPlaceId(pickedPlaceId);
     const confirmedPlace = CAMPUS_PLACES.find((place) => place.id === confirmedPlaceId) || selectedPlace;
-    const formattedLocation = formatLocationString(confirmedPlace, selectedFloor);
+    const dropdownBuildings = {
+      F: "Founder's (F)",
+      C: 'Building 2 (C)',
+      A: 'Arlegui (A)',
+      PC5: 'PC 5',
+      PC12: 'PC 12',
+      PE: 'PE Center',
+      ann: 'PE Center Annex',
+      hub: 'Student Hub',
+      sta: 'Study Area / Canteen',
+      gar: 'Casal Garden',
+      con: 'Congregating Area'
+    };
+    const subAreaNames = {
+      cli: 'Clinic',
+      ces: 'CES',
+      sec: 'Security',
+      Canteen: 'Canteen',
+      'Study Area': 'Study Area'
+    };
+    const building = dropdownBuildings[confirmedPlaceId] || confirmedPlace.n;
+    const specificArea = subAreaNames[pickedPlaceId] ||
+      (['F', 'C', 'A', 'PC5', 'PC12', 'PE'].includes(confirmedPlaceId)
+        ? building
+        : confirmedPlace.n);
+    const locationPayload = {
+      building,
+      specificArea,
+      campus: confirmedPlace.c || campus,
+      floor: selectedFloor || 1
+    };
+    const formattedLocation = `${specificArea}, Floor ${locationPayload.floor}, ${locationPayload.campus} Campus`;
     if (typeof onLocationSelect === 'function') {
-      onLocationSelect(formattedLocation);
+      onLocationSelect(locationPayload);
     }
     if (typeof onSelect === 'function') {
-      onSelect(formattedLocation);
+      onSelect(locationPayload);
     }
     window.dispatchEvent(new CustomEvent('tip:location', { detail: formattedLocation }));
     try {
@@ -220,6 +258,7 @@ const CampusMap = ({
   };
 
   const handleCampusSwitch = (c) => {
+    if (mode === 'readonly') return;
     pickPlace(null);
     setCampus(c);
     flyTo(getTargetViewBox(...CAMPUS_VIEWS[c]));
@@ -272,6 +311,7 @@ const CampusMap = ({
   };
 
   const handleSvgClick = (e) => {
+    if (mode === 'readonly') return;
     if (movedRef.current > 5) return;
     const target = e.target.closest('[data-id]');
     if (target) {
@@ -291,6 +331,7 @@ const CampusMap = ({
   };
 
   const handleElementKeyDown = (e, id) => {
+    if (mode === 'readonly') return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       if (id === 'cha') {
@@ -350,83 +391,80 @@ const CampusMap = ({
       return;
     }
 
+    const locationCampus = /\barlegui\b/i.test(location) ? 'Arlegui' : 'Casal';
+    setCamp(locationCampus);
+
     try {
-      const locLower = location.toLowerCase();
-      let openAreaId = null;
-
-      if (locLower.includes('study area') || locLower.includes('canteen')) {
-        openAreaId = 'sta';
-      } else if (locLower.includes('casal garden')) {
-        openAreaId = 'gar';
-      } else if (locLower.includes('congregating area')) {
-        openAreaId = 'con';
-      } else if (locLower.includes('student hub')) {
-        openAreaId = 'hub';
-      } else if (locLower.includes('common area') || locLower.includes('open area')) {
-        setCamp('Casal');
-        const timeoutId = setTimeout(() => pick(null), 150);
-        return () => clearTimeout(timeoutId);
-      }
-
-      if (openAreaId) {
-        setCamp('Casal');
-        const timeoutId = setTimeout(() => pick(openAreaId), 150);
-        return () => clearTimeout(timeoutId);
-      }
-
       let placeId = null;
       let floor = null;
 
-      const subAreaMatch = location.match(/\b(clinic|ces|security)\b/i);
-      if (subAreaMatch) {
-        placeId = {
-          clinic: 'cli',
-          ces: 'ces',
-          security: 'sec'
-        }[subAreaMatch[1].toLowerCase()];
+      if (/\bsecurity\b/i.test(location)) {
+        placeId = 'Security';
+      } else if (/\bclinic\b/i.test(location)) {
+        placeId = 'Clinic';
+      } else if (/\bCES\b/i.test(location)) {
+        placeId = 'CES';
+      } else if (/\b(?:PE\s+Center\s+)?Annex\b/i.test(location)) {
+        placeId = 'PE Center Annex';
+      } else if (/\bCasal\s+Garden\b/i.test(location)) {
+        placeId = 'Casal Garden';
+      } else if (/\b(?:Student\s+Hub|HUB)\b/i.test(location)) {
+        placeId = 'Student Hub';
+      } else if (/\bStudy\s+Area\b/i.test(location)) {
+        placeId = 'Study Area';
+      } else if (/\bCanteen\b/i.test(location)) {
+        placeId = 'Canteen';
+      } else if (/\bCongregating\s+Area\b/i.test(location)) {
+        placeId = 'con';
+      } else if (/\b(?:common area|open area)\b/i.test(location)) {
+        placeId = null;
       } else if (/\bchapel\b/i.test(location)) {
         placeId = 'cha';
       } else {
         const arleguiRoom = location.match(
-          /\b(?:A\s*[-–—]\s*|Arlegui(?:\s+Campus)?[\s\-–—]+)(\d)\d{2}\b/i
-        );
-        const codedRoom = location.match(
-          /\b(PC[-–—]?12|PC[-–—]?5|F|C|PE)[\s\-–—]*(\d)\d{2}\b/i
+          /\b(?:A\s*[-–—]\s*|Arlegui(?:\s+Campus)?[\s\-–—]+)(\d)(?:\d{2}|XX)\b/i
         );
         const casalRoom = location.match(
-          /\b(?:Building\s*2|Casal)(?:\s+Campus)?[\s\-–—]+(\d)\d{2}\b/i
+          /\b(?:Building\s*2|C)\s*[-–—]?\s*(\d)\s*(?:\d{2}|XX)\b/i
         );
+        const codedRoom = location.match(
+          /\b(PC\s*[-–—]?\s*12|PC\s*[-–—]?\s*5|PE|F|C|A)[\s\-–—]*(\d)\s*(?:\d{2}|XX)\b/i
+        );
+        const floorMatch = location.match(/\b(?:Floor|Flr)\s*(\d+)\b/i) ||
+          location.match(/\bA\s*[-–—]\s*(\d)\b/i);
 
         if (arleguiRoom) {
           placeId = 'A';
           floor = Number(arleguiRoom[1]);
-        } else if (codedRoom) {
-          placeId = codedRoom[1].toUpperCase().replace(/[-–—]/g, '');
-          floor = Number(codedRoom[2]);
         } else if (casalRoom) {
           placeId = 'C';
           floor = Number(casalRoom[1]);
-        } else if (/\b(?:pe[\s-]*annex|pe[\s-]*center\s+annex)\b/i.test(location)) {
-          placeId = 'ann';
-        } else if (/\bpc[\s-]*12\b/i.test(location)) {
-          placeId = 'PC12';
-        } else if (/\b(?:pe\s+center|physical\s+education\s+center)\b/i.test(location)) {
-          placeId = 'PE';
-        } else if (/\bpc[\s-]*5\b/i.test(location)) {
-          placeId = 'PC5';
-        } else if (/\bbuilding\s*2\b/i.test(location) || /\bC\b/i.test(location)) {
+        } else if (codedRoom) {
+          const code = codedRoom[1].toUpperCase().replace(/[\s\-–—]/g, '');
+          placeId = code === 'PC12' ? 'PC12' : code === 'PC5' ? 'PC5' : code;
+          floor = Number(codedRoom[2]);
+        } else if (/\b(?:building\s*2|C)\b/i.test(location)) {
           placeId = 'C';
-        } else if (/\bfounder'?s\s+building\b/i.test(location) || /\bF\b/i.test(location)) {
+        } else if (/\b(?:PC\s*[-–—]?\s*12)\b/i.test(location)) {
+          placeId = 'PC12';
+        } else if (/\b(?:PC\s*[-–—]?\s*5)\b/i.test(location)) {
+          placeId = 'PC5';
+        } else if (/\b(?:PE\s+Center|Physical\s+Education\s+Center|PE)\b/i.test(location)) {
+          placeId = 'PE';
+        } else if (/\b(?:Founder'?s(?:\s+Building)?|F\s+Building|F)\b/i.test(location)) {
           placeId = 'F';
-        } else if (/\barlegui\b/i.test(location) || /\bA\s*[-–—]\s*\d{3}\b/i.test(location)) {
+        } else if (
+          /\bArlegui(?:\s+Campus)?\b/i.test(location) ||
+          /\bA\s*[-–—]\s*(?:\d{3}|\d)\b/i.test(location)
+        ) {
           placeId = 'A';
         }
+
+        if (placeId && floorMatch) floor = Number(floorMatch[1]);
       }
 
-      const target = placeId ? CAMPUS_PLACES.find((place) => place.id === placeId) : null;
-      const targetCampus = target?.c || (/\barlegui\b/i.test(location) ? 'Arlegui' : 'Casal');
-      setCamp(targetCampus);
-
+      const targetId = placeId ? NAMED_PLACE_IDS[placeId] || placeId : null;
+      const target = targetId ? CAMPUS_PLACES.find((place) => place.id === targetId) : null;
       const timeoutId = setTimeout(() => {
         if (target) {
           pick(placeId, floor || undefined);
@@ -440,6 +478,7 @@ const CampusMap = ({
       setCampus('Casal');
       setSelectedPlace(null);
       setSelectedFloor(null);
+      setSelectedPlaceId(null);
       if (CAMPUS_VIEWS.Casal) {
         flyTo(getTargetViewBox(...CAMPUS_VIEWS.Casal));
       }
@@ -449,13 +488,13 @@ const CampusMap = ({
   // Global keydown (Escape closes panel)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && selectedPlace) {
+      if (mode !== 'readonly' && e.key === 'Escape' && selectedPlace) {
         pickPlace(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPlace, pickPlace]);
+  }, [mode, selectedPlace, pickPlace]);
 
   // Cleanup animation frame and timeout on unmount
   useEffect(() => {
@@ -483,6 +522,7 @@ const CampusMap = ({
             type="button"
             className={campus === 'Casal' ? 'on' : ''}
             onClick={() => handleCampusSwitch('Casal')}
+            disabled={mode === 'readonly'}
           >
             Casal
           </button>
@@ -491,6 +531,7 @@ const CampusMap = ({
             type="button"
             className={campus === 'Arlegui' ? 'on' : ''}
             onClick={() => handleCampusSwitch('Arlegui')}
+            disabled={mode === 'readonly'}
           >
             Arlegui
           </button>
@@ -508,7 +549,7 @@ const CampusMap = ({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        onClick={handleSvgClick}
+        onClick={mode === 'readonly' ? undefined : handleSvgClick}
       >
         {/* Grounds */}
         <polygon
@@ -552,6 +593,7 @@ const CampusMap = ({
             (selectedPlace?.id === 'PC12' && p.id === 'cha');
           const lines = (p.t || p.n).split('|');
           const handleSelectPlace = (event) => {
+            if (mode === 'readonly') return;
             event.stopPropagation();
             if (p.id === 'cha') {
               pick('PC12');
@@ -568,11 +610,13 @@ const CampusMap = ({
               key={p.id}
               className={`p ${p.o ? 'o' : ''} ${isSelected ? 'sel' : ''}`}
               data-id={p.id}
-              tabIndex={0}
+              tabIndex={mode === 'readonly' ? -1 : 0}
               role="button"
               aria-label={p.n}
-              onClick={handleSelectPlace}
+              aria-disabled={mode === 'readonly'}
+              onClick={mode === 'readonly' ? undefined : handleSelectPlace}
               onKeyDown={(e) => {
+                if (mode === 'readonly') return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   handleSelectPlace();
@@ -619,10 +663,11 @@ const CampusMap = ({
               key={p.id}
               className={`gate ${isSelected ? 'sel' : ''}`}
               data-id={p.id}
-              tabIndex={0}
+              tabIndex={mode === 'readonly' ? -1 : 0}
               role="button"
               aria-label={p.n}
-              onKeyDown={(e) => handleElementKeyDown(e, p.id)}
+              aria-disabled={mode === 'readonly'}
+              onKeyDown={mode === 'readonly' ? undefined : (e) => handleElementKeyDown(e, p.id)}
             >
               <circle className="ring" cx={p.x} cy={p.y} r="16" />
               <rect
@@ -711,14 +756,16 @@ const CampusMap = ({
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div className="campus-map-k" style={{ margin: 0 }}>T.I.P.ian pro tip</div>
-              <button
-                type="button"
-                className="campus-map-x mobile-only-close"
-                onClick={() => setMobileProTipOpen(false)}
-                aria-label="Close Pro Tip"
-              >
-                <X size={16} />
-              </button>
+              {mode !== 'readonly' && (
+                <button
+                  type="button"
+                  className="campus-map-x mobile-only-close"
+                  onClick={() => setMobileProTipOpen(false)}
+                  aria-label="Close Pro Tip"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
             <div className="campus-map-rc">
               <div>
@@ -745,6 +792,7 @@ const CampusMap = ({
                     key={id}
                     type="button"
                     onClick={() => pickPlace(id)}
+                    disabled={mode === 'readonly'}
                     aria-label={`Select ${place.n}`}
                   >
                     <b>{code}</b>
@@ -767,6 +815,7 @@ const CampusMap = ({
                     key={id}
                     type="button"
                     onClick={() => pickPlace(id)}
+                    disabled={mode === 'readonly'}
                     aria-label={`Select ${label}`}
                   >
                     <b>OA</b>
@@ -780,7 +829,8 @@ const CampusMap = ({
             <div className="campus-map-cl">
               <button
                 type="button"
-                onClick={() => pickPlace('hub')}
+                onClick={() => pickPlace('Student Hub')}
+                disabled={mode === 'readonly'}
                 aria-label="Select Student Hub"
               >
                 <b>HUB</b>
@@ -790,24 +840,26 @@ const CampusMap = ({
           </>
         ) : (
           <>
-            <button
-              type="button"
-              className="campus-map-x"
-              onClick={() => pickPlace(null)}
-              aria-label="Close details"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
+            {mode !== 'readonly' && (
+              <button
+                type="button"
+                className="campus-map-x"
+                onClick={() => pickPlace(null)}
+                aria-label="Close details"
               >
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            )}
 
             <div className="campus-map-k">
               {selectedPlace?.k ?? 'Location'} · {selectedPlace?.c ?? campus} Campus
@@ -829,6 +881,7 @@ const CampusMap = ({
                       type="button"
                       className={+f === selectedFloor ? 'on' : ''}
                       onClick={() => setSelectedFloor(+f)}
+                      disabled={mode === 'readonly'}
                       aria-label={`Floor ${f}`}
                     >
                       {f}

@@ -13,9 +13,12 @@ import Profile from './pages/Profile';
 import ArchivedReports from './pages/ArchivedReports';
 import CampusPage from './pages/CampusPage';
 import { getMe } from './api/auth';
+import PrivacyConsentModal from './components/PrivacyConsentModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [pendingConsent, setPendingConsent] = useState(null);
+  const [statusToast, setStatusToast] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Validate session on reload by calling /api/auth/me
@@ -51,6 +54,33 @@ export default function App() {
     setCurrentUser(user);
   };
 
+  const handleConsentRequired = (consentData) => {
+    localStorage.removeItem('token');
+    setCurrentUser(null);
+    setPendingConsent(consentData);
+  };
+
+  const handleConsentAccepted = (user) => {
+    setPendingConsent(null);
+    setCurrentUser(user);
+  };
+
+  const handleConsentDeclined = () => {
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
+    setCurrentUser(null);
+    setPendingConsent(null);
+    setStatusToast(
+      'Authentication aborted. Unconsented accounts will be automatically deleted in 30 days. You may still report incidents using the Guest Report feature.'
+    );
+  };
+
+  useEffect(() => {
+    if (!statusToast) return undefined;
+    const timeoutId = window.setTimeout(() => setStatusToast(''), 4500);
+    return () => window.clearTimeout(timeoutId);
+  }, [statusToast]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center text-muted text-sm">
@@ -72,7 +102,10 @@ export default function App() {
                 replace
               />
             ) : (
-              <Landing onLoginSuccess={handleLoginSuccess} />
+              <Landing
+                onLoginSuccess={handleLoginSuccess}
+                onConsentRequired={handleConsentRequired}
+              />
             )
           }
         />
@@ -105,7 +138,7 @@ export default function App() {
             <ProtectedLayout
               user={currentUser}
               onLogout={handleLogout}
-              allowedRoles={['Department', 'Superadmin', 'department', 'superadmin']}
+              allowedRoles={['Admin', 'admin', 'Department', 'department', 'Superadmin', 'superadmin']}
             />
           }
         >
@@ -131,6 +164,22 @@ export default function App() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {pendingConsent && (
+        <PrivacyConsentModal
+          consentToken={pendingConsent.consentToken}
+          onAccepted={handleConsentAccepted}
+          onDecline={handleConsentDeclined}
+        />
+      )}
+      {statusToast && (
+        <div
+          className="fixed bottom-5 left-1/2 z-[10001] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-lg bg-slate-900 px-4 py-3 text-sm text-white shadow-xl"
+          role="status"
+          aria-live="polite"
+        >
+          {statusToast}
+        </div>
+      )}
     </Router>
   );
 }

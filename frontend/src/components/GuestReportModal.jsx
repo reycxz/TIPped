@@ -58,6 +58,18 @@ export default function GuestReportModal({
 
   const applyLocationString = (locStr) => {
     if (!locStr) return;
+    if (typeof locStr === 'object') {
+      const { building: selectedBuilding, specificArea, campus: selectedCampus, floor: selectedFloor } = locStr;
+      const resolvedCampus = selectedCampus || 'Casal';
+      const resolvedFloor = String(selectedFloor || '1');
+      setCampus(resolvedCampus);
+      setBuilding(selectedBuilding);
+      setFloor(resolvedFloor);
+      setRoom('');
+      setIsRoomSpecific(false);
+      setLandmark(`${specificArea || selectedBuilding}, Floor ${resolvedFloor}, ${resolvedCampus} Campus`);
+      return;
+    }
     setLandmark(locStr);
 
     if (locStr.includes('Casal Campus')) {

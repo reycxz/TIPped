@@ -6,6 +6,8 @@ const connectDB = require('./config/db');
 // Load environment variables
 dotenv.config();
 
+require('./cronJobs');
+
 // Connect to MongoDB
 connectDB();
 

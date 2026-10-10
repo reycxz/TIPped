@@ -13,6 +13,42 @@ const createEmailTransporter = () => {
   });
 };
 
+const STAFF_ROLES = new Set(['admin', 'superadmin', 'department']);
+
+const isStaffRole = (role) => STAFF_ROLES.has((role || '').toLowerCase());
+
+const sendAuthResponse = (res, user, statusCode = 200) => {
+  const userObj = user.toObject();
+  delete userObj.password;
+
+  if (!isStaffRole(user.role) && !user.hasAcceptedPrivacyPolicy) {
+    const consentToken = jwt.sign(
+      { id: user._id, purpose: 'privacy-consent' },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    return res.status(statusCode).json({
+      message: 'Privacy consent required',
+      requiresConsent: true,
+      consentToken,
+      user: userObj
+    });
+  }
+
+  const token = jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: '1d' }
+  );
+
+  return res.status(statusCode).json({
+    message: 'Login successful',
+    token,
+    user: userObj
+  });
+};
+
 // @desc    Register a new user (Generates real OTP saved to DB)
 // @route   POST /api/auth/register
 // @access  Public
@@ -123,16 +159,7 @@ exports.verifyOtp = async (req, res, next) => {
     user.otpExpires = null;
     await user.save();
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-
-    const userObj = user.toObject();
-    delete userObj.password;
-
-    res.json({
-      message: 'Verified',
-      token,
-      user: userObj
-    });
+    return sendAuthResponse(res, user);
   } catch (error) {
     next(error);
   }
@@ -163,9 +190,7 @@ exports.login = async (req, res, next) => {
     const isMatch = await bcrypt.compare(req.body.password, user.password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    
-    res.json({ token, user });
+    return sendAuthResponse(res, user);
   } catch (error) {
     next(error);
   }
@@ -220,14 +245,7 @@ exports.googleAuth = async (req, res) => {
     let user = await User.findOne({ email: verifiedEmail });
 
     if (user) {
-      const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-      const userObj = user.toObject();
-      delete userObj.password;
-      return res.status(200).json({
-        message: 'Google login successful',
-        token,
-        user: userObj
-      });
+      return sendAuthResponse(res, user);
     }
 
     let derivedFirstName = googleUser.given_name || firstName ? (googleUser.given_name || firstName).trim() : '';
@@ -254,17 +272,102 @@ exports.googleAuth = async (req, res) => {
 
     await user.save();
 
-    const authToken = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    return sendAuthResponse(res, user, 201);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Server error during Google authentication' });
+  }
+};
+
+// @desc    Accept privacy consent for Google authentication
+// @route   POST /api/auth/consent
+// @access  Public (temporary consent token required)
+exports.acceptPrivacyConsent = async (req, res, next) => {
+  try {
+    const { consentToken } = req.body;
+    if (typeof consentToken !== 'string' || !consentToken) {
+      return res.status(401).json({ error: 'A valid consent token is required' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(consentToken, process.env.JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid or expired consent token' });
+    }
+
+    if (decoded.purpose !== 'privacy-consent' || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid consent token' });
+    }
+
+    const user = await User.findOneAndUpdate(
+      {
+        _id: decoded.id,
+        role: { $in: ['User', 'user'] },
+        hasAcceptedPrivacyPolicy: { $ne: true }
+      },
+      {
+        $set: {
+          hasAcceptedPrivacyPolicy: true,
+          consentTimestamp: new Date()
+        },
+        $unset: {
+          declinedAt: 1
+        }
+      },
+      { new: true }
+    );
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid or already used consent session' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
     const userObj = user.toObject();
     delete userObj.password;
 
-    return res.status(201).json({
-      message: 'Google login successful',
-      token: authToken,
-      user: userObj
-    });
+    return res.json({ token, user: userObj });
   } catch (error) {
-    return res.status(500).json({ error: error.message || 'Server error during Google authentication' });
+    return next(error);
+  }
+};
+
+exports.declinePrivacyConsent = async (req, res, next) => {
+  try {
+    const { consentToken } = req.body;
+    if (typeof consentToken !== 'string' || !consentToken) {
+      return res.status(401).json({ error: 'A valid consent token is required' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(consentToken, process.env.JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid or expired consent token' });
+    }
+
+    if (decoded.purpose !== 'privacy-consent' || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid consent token' });
+    }
+
+    const user = await User.findOneAndUpdate(
+      {
+        _id: decoded.id,
+        role: { $in: ['User', 'user'] },
+        hasAcceptedPrivacyPolicy: { $ne: true }
+      },
+      { $set: { declinedAt: new Date() } },
+      { new: true }
+    );
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid or expired consent session' });
+    }
+
+    return res.status(200).json({ message: 'Privacy consent declined' });
+  } catch (error) {
+    return next(error);
   }
 };
 
@@ -546,5 +649,3 @@ exports.deleteDepartmentAccount = async (req, res) => {
 };
 
 exports.deleteUser = exports.deleteDepartmentAccount;
-
-

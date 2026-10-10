@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['User', 'user', 'Department', 'department', 'Superadmin', 'superadmin'],
+        values: ['User', 'user', 'Admin', 'admin', 'Department', 'department', 'Superadmin', 'superadmin'],
         message: '{VALUE} is not a supported role'
       },
       default: 'user'
@@ -75,6 +75,16 @@ const userSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false
+    },
+    hasAcceptedPrivacyPolicy: {
+      type: Boolean,
+      default: false
+    },
+    consentTimestamp: {
+      type: Date
+    },
+    declinedAt: {
+      type: Date
     }
   },
   {

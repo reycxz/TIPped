@@ -420,7 +420,11 @@ export default function TicketModal({
             <div className="flex-1 w-full relative h-full min-h-0 overflow-hidden">
               <CampusMap
                 mode="readonly"
-                defaultLocation={ticket.location || (ticket.campus && ticket.locationInfo?.room ? `${ticket.campus} - ${ticket.locationInfo.room}` : ticket.location)}
+                defaultLocation={
+                  ticket.locationInfo?.building
+                    ? `${ticket.campus || ''} - ${ticket.locationInfo.building} - Floor ${ticket.locationInfo.floor ?? ''} - ${ticket.locationInfo.room ?? ''}`
+                    : ticket.location
+                }
               />
             </div>
           </div>

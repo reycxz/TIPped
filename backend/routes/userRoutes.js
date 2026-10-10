@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { googleAuth, updateUserProfile } = require('../controllers/userController');
+const { updateUserProfile } = require('../controllers/userController');
 const authController = require('../controllers/authController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 
 // Public routes
-router.post('/google-auth', googleAuth);
+router.post('/google-auth', authController.googleAuth);
 router.post('/login', authController.login);
 
 // @desc    Update user profile (firstName, lastName, program)

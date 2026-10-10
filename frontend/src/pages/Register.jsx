@@ -3,7 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { registerUser, verifyRegistrationOtp } from '../api/auth';
 import { AlertCircle, Eye, EyeOff, X } from 'lucide-react';
 
-export default function Register({ onLoginSuccess, isEmbedded = false, onToggleLogin }) {
+export default function Register({
+  onLoginSuccess,
+  onConsentRequired,
+  isEmbedded = false,
+  onToggleLogin
+}) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -96,6 +101,23 @@ export default function Register({ onLoginSuccess, isEmbedded = false, onToggleL
     try {
       const res = await verifyRegistrationOtp(pendingEmail, otpCode.trim());
 
+      if (res.requiresConsent) {
+        if (!res.consentToken || typeof onConsentRequired !== 'function') {
+          throw new Error('Privacy consent could not be started. Please try signing in again.');
+        }
+        localStorage.removeItem('token');
+        setShowOtpModal(false);
+        onConsentRequired({
+          consentToken: res.consentToken,
+          user: res.user
+        });
+        return;
+      }
+
+      if (!res.token) {
+        throw new Error('Verification did not return an access token.');
+      }
+
       localStorage.setItem('token', res.token);
 
       if (onLoginSuccess && res.user) {
@@ -104,7 +126,7 @@ export default function Register({ onLoginSuccess, isEmbedded = false, onToggleL
 
       setShowOtpModal(false);
 
-      if (res.user.role === 'Department' || res.user.role === 'Superadmin') {
+      if (['admin', 'superadmin', 'department'].includes((res.user.role || '').toLowerCase())) {
         navigate('/admin');
       } else {
         navigate('/dashboard', { state: { isNewUser: true } });

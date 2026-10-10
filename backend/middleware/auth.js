@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const STAFF_ROLES = new Set(['admin', 'superadmin', 'department']);
 
 const verifyToken = async (req, res, next) => {
   try {
@@ -17,10 +18,17 @@ const verifyToken = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.purpose === 'privacy-consent') {
+      return res.status(401).json({ error: 'Consent token is not an access token' });
+    }
     const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid token: user not found' });
+    }
+
+    if (!STAFF_ROLES.has((user.role || '').toLowerCase()) && !user.hasAcceptedPrivacyPolicy) {
+      return res.status(403).json({ error: 'Privacy consent is required' });
     }
 
     req.user = user;
@@ -54,7 +62,7 @@ const requireStaffOrAdmin = (req, res, next) => {
   }
 
   const role = (req.user.role || '').toLowerCase();
-  if (!['superadmin', 'department'].includes(req.user.role) && !['superadmin', 'department'].includes(role)) {
+  if (!['admin', 'superadmin', 'department'].includes(role)) {
     return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
   }
 

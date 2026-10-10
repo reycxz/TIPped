@@ -22,7 +22,17 @@ export const loginUser = async (email, password) => {
 };
 
 export const googleAuthApi = async (userData) => {
-  const response = await axios.post('/api/users/google-auth', userData);
+  const response = await axios.post('/api/auth/google-auth', userData);
+  return response.data;
+};
+
+export const acceptPrivacyConsent = async (consentToken) => {
+  const response = await axios.post('/api/auth/consent', { consentToken });
+  return response.data;
+};
+
+export const declinePrivacyConsent = async (consentToken) => {
+  const response = await axios.post('/api/auth/decline', { consentToken });
   return response.data;
 };
 

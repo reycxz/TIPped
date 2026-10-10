@@ -19,6 +19,8 @@ router.post('/register', authController.register);
 router.post('/verify-otp', authController.verifyOtp);
 router.post('/login', authController.login);
 router.post('/google-auth', authController.googleAuth);
+router.post('/consent', authController.acceptPrivacyConsent);
+router.post('/decline', authController.declinePrivacyConsent);
 router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
 router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
 

@@ -6,7 +6,12 @@ import axios from 'axios';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
 import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 
-export default function Login({ onLoginSuccess, isEmbedded = false, onToggleRegister }) {
+export default function Login({
+  onLoginSuccess,
+  onConsentRequired,
+  isEmbedded = false,
+  onToggleRegister
+}) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -24,6 +29,23 @@ export default function Login({ onLoginSuccess, isEmbedded = false, onToggleRegi
 
     try {
       const data = await loginUser(email, password);
+
+      if (data.requiresConsent) {
+        if (!data.consentToken || typeof onConsentRequired !== 'function') {
+          throw new Error('Privacy consent could not be started. Please try signing in again.');
+        }
+        localStorage.removeItem('token');
+        onConsentRequired({
+          consentToken: data.consentToken,
+          user: data.user
+        });
+        setFailedAttempts(0);
+        return;
+      }
+
+      if (!data.token) {
+        throw new Error('Login did not return an access token.');
+      }
 
       // Constraint 2: Only store the JWT string, never store isLoggedIn
       localStorage.setItem('token', data.token);
@@ -45,7 +67,7 @@ export default function Login({ onLoginSuccess, isEmbedded = false, onToggleRegi
         }
       }
 
-      if (role === 'Superadmin' || role === 'Department') {
+      if (['admin', 'superadmin', 'department'].includes((role || '').toLowerCase())) {
         navigate('/admin');
       } else {
         navigate('/dashboard');
@@ -93,6 +115,22 @@ export default function Login({ onLoginSuccess, isEmbedded = false, onToggleRegi
           avatar: gUser.picture,
         });
 
+        if (data.requiresConsent) {
+          if (!data.consentToken || typeof onConsentRequired !== 'function') {
+            throw new Error('Privacy consent could not be started. Please try signing in again.');
+          }
+          localStorage.removeItem('token');
+          onConsentRequired({
+            consentToken: data.consentToken,
+            user: data.user
+          });
+          return;
+        }
+
+        if (!data.token) {
+          throw new Error('Google authentication did not return an access token.');
+        }
+
         localStorage.setItem('token', data.token);
 
         if (onLoginSuccess) {
@@ -110,7 +148,7 @@ export default function Login({ onLoginSuccess, isEmbedded = false, onToggleRegi
           }
         }
 
-        if (role === 'Superadmin' || role === 'Department') {
+        if (['admin', 'superadmin', 'department'].includes((role || '').toLowerCase())) {
           navigate('/admin');
         } else {
           navigate('/dashboard');
