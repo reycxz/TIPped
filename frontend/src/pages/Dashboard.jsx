@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getMetrics, getMyTickets } from '../api/tickets';
 import CameraFAB from '../components/CameraFAB';
 import { Clock, AlertTriangle, ChevronRight } from 'lucide-react';
+import { io } from 'socket.io-client';
+
+const socketUrl = import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin);
 
 export default function Dashboard({ user }) {
   const location = useLocation();
@@ -16,6 +20,7 @@ export default function Dashboard({ user }) {
   });
 
   const [recentTickets, setRecentTickets] = useState([]);
+  const recentTicketsRef = useRef([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +37,9 @@ export default function Dashboard({ user }) {
           resolved: Number(metricsData.resolved) || 0,
         });
 
-        setRecentTickets(Array.isArray(ticketsData) ? ticketsData : []);
+        const tickets = Array.isArray(ticketsData) ? ticketsData : [];
+        recentTicketsRef.current = tickets;
+        setRecentTickets(tickets);
       } catch (err) {
         console.error('Dashboard data fetch error:', err);
       } finally {
@@ -42,6 +49,55 @@ export default function Dashboard({ user }) {
 
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || (user?.role || '').toLowerCase() !== 'user') return undefined;
+
+    const socket = io(socketUrl, {
+      auth: { token },
+      withCredentials: true
+    });
+    const joinUserRoom = () => {
+      socket.emit('join_user_room', user?._id || user?.id);
+    };
+    const handleTicketUpdated = (ticket) => {
+      if (!ticket?._id) return;
+      const previousTickets = recentTicketsRef.current;
+      const existingTicket = previousTickets.find((item) => item._id === ticket._id);
+      if (!existingTicket) return;
+
+      recentTicketsRef.current = previousTickets.map((item) =>
+        item._id === ticket._id ? { ...item, ...ticket } : item
+      );
+      setRecentTickets(recentTicketsRef.current);
+
+      if (existingTicket.status === ticket.status) return;
+      const statusKey = {
+        Pending: 'pending',
+        'In Progress': 'inProgress',
+        Resolved: 'resolved'
+      };
+      const oldMetric = statusKey[existingTicket.status];
+      const newMetric = statusKey[ticket.status];
+      if (!oldMetric || !newMetric) return;
+
+      setMetrics((current) => ({
+        ...current,
+        [oldMetric]: Math.max(0, current[oldMetric] - 1),
+        [newMetric]: current[newMetric] + 1
+      }));
+    };
+
+    socket.on('connect', joinUserRoom);
+    socket.on('ticketUpdated', handleTicketUpdated);
+    if (socket.connected) joinUserRoom();
+    return () => {
+      socket.off('connect', joinUserRoom);
+      socket.off('ticketUpdated', handleTicketUpdated);
+      socket.disconnect();
+    };
+  }, [user?.role]);
 
   const totalReports = metrics.pending + metrics.inProgress + metrics.resolved;
 

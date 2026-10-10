@@ -7,6 +7,7 @@ const User = require('../models/User');
 const { generateTicketId } = require('../utils/ticketIdGenerator');
 const { sendStatusUpdateEmail, sendGuestConfirmationEmail } = require('../utils/emailService');
 const { streamUpload, uploadDirect } = require('../config/cloudinary');
+const { emitNewTicket, emitToUser } = require('../socket');
 
 // Helper to escape special regular expression characters preventing ReDoS and query crashes
 const escapeRegex = (str) => {
@@ -251,10 +252,15 @@ exports.createTicket = async (req, res) => {
     });
 
     await ticket.save();
+    const populatedTicket = await Ticket.findById(ticket._id)
+      .populate('submittedBy', 'firstName lastName email role')
+      .populate('reportedBy', 'firstName lastName email role')
+      .lean();
+    emitNewTicket(populatedTicket);
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket
+      ticket: populatedTicket
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -365,6 +371,11 @@ exports.createGuestTicket = async (req, res) => {
     });
 
     await ticket.save();
+    const populatedTicket = await Ticket.findById(ticket._id)
+      .populate('submittedBy', 'firstName lastName email role')
+      .populate('reportedBy', 'firstName lastName email role')
+      .lean();
+    emitNewTicket(populatedTicket);
 
     // Constraint 3 & 5: Fire confirmation email non-blocking — does NOT delay the 201 response
     if (guestEmail) {
@@ -380,7 +391,7 @@ exports.createGuestTicket = async (req, res) => {
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket
+      ticket: populatedTicket
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -486,7 +497,9 @@ exports.updateTicket = async (req, res) => {
 
     // Dynamic Actor Identification (case-normalized)
     let actorPrefix = 'User';
-    if (role === 'superadmin') {
+    if (role === 'admin') {
+      actorPrefix = 'Admin';
+    } else if (role === 'superadmin') {
       actorPrefix = 'Superadmin';
     } else if (role === 'department') {
       actorPrefix = req.user.firstName || 'Department';
@@ -541,6 +554,21 @@ exports.updateTicket = async (req, res) => {
     }
 
     await ticket.save();
+
+    if (statusChanged) {
+      const updatedTicket = await Ticket.findById(ticket._id)
+        .populate('reportedBy', '_id role')
+        .populate('submittedBy', '_id role')
+        .lean();
+      const reporter = updatedTicket?.reportedBy || updatedTicket?.submittedBy;
+      const reporterId = reporter?._id;
+
+      if (reporterId && (reporter.role || '').toLowerCase() === 'user') {
+        const reporterRoom = reporterId.toString();
+        console.info(`[Socket.IO] Emitting ticketUpdated for ${updatedTicket.ticketId} to room ${reporterRoom}`);
+        emitToUser(reporterRoom, 'ticketUpdated', updatedTicket);
+      }
+    }
 
     // Formal text-only notification dispatched asynchronously without blocking HTTP response
     const recipientEmail = ticket.submittedBy?.email || ticket.reportedBy?.email || ticket.guestEmail;
@@ -962,6 +990,3 @@ exports.restoreTicket = exports.restoreReport;
 exports.getArchivedTickets = exports.getArchivedReports;
 exports.deleteReport = exports.deleteReportForever;
 exports.deleteTicketForever = exports.deleteReportForever;
-
-
-

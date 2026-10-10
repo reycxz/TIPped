@@ -397,12 +397,13 @@ const CampusMap = ({
     try {
       let placeId = null;
       let floor = null;
+      const normalizedLocation = location.toLowerCase();
 
-      if (/\bsecurity\b/i.test(location)) {
+      if (normalizedLocation.includes('security')) {
         placeId = 'Security';
-      } else if (/\bclinic\b/i.test(location)) {
+      } else if (normalizedLocation.includes('clinic')) {
         placeId = 'Clinic';
-      } else if (/\bCES\b/i.test(location)) {
+      } else if (/\bces\b/i.test(normalizedLocation)) {
         placeId = 'CES';
       } else if (/\b(?:PE\s+Center\s+)?Annex\b/i.test(location)) {
         placeId = 'PE Center Annex';

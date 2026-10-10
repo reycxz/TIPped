@@ -422,7 +422,7 @@ export default function TicketModal({
                 mode="readonly"
                 defaultLocation={
                   ticket.locationInfo?.building
-                    ? `${ticket.campus || ''} - ${ticket.locationInfo.building} - Floor ${ticket.locationInfo.floor ?? ''} - ${ticket.locationInfo.room ?? ''}`
+                    ? `${ticket.campus || ''} - ${ticket.locationInfo.building} - Floor ${ticket.locationInfo.floor ?? ''} - ${ticket.locationInfo.room ?? ''} - ${ticket.locationInfo.landmark || ''}`
                     : ticket.location
                 }
               />

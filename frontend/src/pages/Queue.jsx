@@ -11,6 +11,10 @@ import {
   deleteCategory,
 } from '../api/adminData';
 import TicketDrawer from '../components/TicketDrawer';
+import { io } from 'socket.io-client';
+
+const socketUrl = import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin);
 import {
   Search,
   Filter,
@@ -147,6 +151,33 @@ export default function Queue({ user }) {
       fetchTicketsData();
     }
   }, [campusFilter, statusFilter, categoryFilter, searchQuery, activeTab]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return undefined;
+
+    const socket = io(socketUrl, {
+      auth: { token }
+    });
+    const handleNewTicket = (ticket) => {
+      const incomingTicket = {
+        ...ticket,
+        issueCategory: ticket.issueCategory || ticket.category || '',
+        assignedDepartment: ticket.assignedDepartment || ''
+      };
+      setTickets((previous) => [
+        incomingTicket,
+        ...previous.filter((existing) => existing._id !== incomingTicket._id)
+      ]);
+      fetchMetricsData();
+    };
+
+    socket.on('newTicket', handleNewTicket);
+    return () => {
+      socket.off('newTicket', handleNewTicket);
+      socket.disconnect();
+    };
+  }, []);
 
   // Fetch routing data for Superadmin
   const fetchRoutingData = async () => {

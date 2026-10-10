@@ -1,12 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import TippedLogo from './TippedLogo';
-import { Settings, User, Moon, Sun, LogOut, Archive } from 'lucide-react';
+import {
+  Settings,
+  User,
+  Moon,
+  Sun,
+  LogOut,
+  Archive,
+  Bell,
+  Menu,
+  X,
+  LayoutDashboard,
+  FilePlus2,
+  ClipboardList,
+  Shield,
+  ChartNoAxesColumn,
+} from 'lucide-react';
+import { io } from 'socket.io-client';
+
+const socketUrl = import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin);
 
 export default function Navbar({ user: propUser, userRole = 'User', onLogout, isLanding = false }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const dropdownRef = useRef(null);
+  const notificationsRef = useRef(null);
+  const mobileMenuRef = useRef(null);
   const navigate = useNavigate();
 
   // Normalize user and role - strictly identify authenticated users
@@ -22,10 +47,57 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setNotificationsOpen(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+        setIsMobileMenuOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'user') return undefined;
+    const token = localStorage.getItem('token');
+    if (!token) return undefined;
+
+    const socket = io(socketUrl, {
+      auth: { token },
+      withCredentials: true
+    });
+    const joinUserRoom = () => {
+      socket.emit('join_user_room', user._id || user.id);
+    };
+    const handleTicketUpdated = (updatedTicket) => {
+      if (!updatedTicket?.ticketId || !updatedTicket?.status) return;
+      const createdAt = Date.now();
+      setNotifications((previous) => [
+        {
+          id: `${updatedTicket.ticketId}-${createdAt}`,
+          message: `Report ${updatedTicket.ticketId} status changed to ${updatedTicket.status}`,
+          createdAt
+        },
+        ...previous
+      ].slice(0, 10));
+      setUnreadNotifications((previous) => previous + 1);
+    };
+    const handleConnectError = (error) => {
+      console.error('Notification socket connection failed:', error.message);
+    };
+
+    socket.on('connect', joinUserRoom);
+    socket.on('connect_error', handleConnectError);
+    socket.on('ticketUpdated', handleTicketUpdated);
+    if (socket.connected) joinUserRoom();
+    return () => {
+      socket.off('connect', joinUserRoom);
+      socket.off('connect_error', handleConnectError);
+      socket.off('ticketUpdated', handleTicketUpdated);
+      socket.disconnect();
+    };
+  }, [isAuthenticated, user?._id, user?.role]);
 
   // Sync theme with localStorage and root class (defaults to clean light mode)
   useEffect(() => {
@@ -68,8 +140,27 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
     }`;
 
+  const mobileNavLinks = user?.role === 'user'
+    ? [
+        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/report/new', label: 'Report', icon: FilePlus2 },
+        { to: '/my-reports', label: 'Reports', icon: ClipboardList },
+      ]
+    : [
+        { to: '/admin', label: 'Console', icon: Shield },
+        ...(user?.role === 'superadmin'
+          ? [
+              { to: '/analytics', label: 'Analytics', icon: ChartNoAxesColumn },
+              { to: '/archive', label: 'Archive', icon: Archive },
+            ]
+          : []),
+      ];
+
   return (
-    <header className="w-full bg-mist dark:bg-midnight text-midnight dark:text-mist border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 transition-colors duration-200">
+    <header
+      ref={mobileMenuRef}
+      className="relative w-full bg-mist dark:bg-midnight text-midnight dark:text-mist border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 transition-colors duration-200"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Brand Logo & Navigation Links */}
         <div className="flex items-center space-x-8">
@@ -130,19 +221,62 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
             )}
           </button>
         ) : (
-          <div className="relative" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setDropdownOpen((prev) => !prev)}
-              aria-label="Settings"
-              className="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors focus:outline-none"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
+          <div className="flex items-center gap-1">
+            {user?.role === 'user' && (
+              <div className="relative" ref={notificationsRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotificationsOpen((previous) => !previous);
+                    setUnreadNotifications(0);
+                  }}
+                  aria-label="Notifications"
+                  aria-expanded={notificationsOpen}
+                  className="relative p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors focus:outline-none"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
+                  )}
+                </button>
+                {notificationsOpen && (
+                  <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white py-2 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                    <h2 className="px-4 pb-2 text-sm font-semibold text-slate-900 dark:text-white">
+                      Notifications
+                    </h2>
+                    {notifications.length ? (
+                      <ul className="max-h-72 overflow-y-auto">
+                        {notifications.map((notification) => (
+                          <li
+                            key={notification.id}
+                            className="border-t border-slate-100 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                          >
+                            {notification.message}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                        No notifications
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setDropdownOpen((prev) => !prev)}
+                aria-label="Settings"
+                className="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors focus:outline-none"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
 
-            {/* Settings Dropdown Menu */}
-            {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+              {/* Settings Dropdown Menu */}
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                 <Link
                   to="/profile"
                   onClick={() => setDropdownOpen(false)}
@@ -195,11 +329,42 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
                   <LogOut className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
                   <span>Logout</span>
                 </button>
-              </div>
-            )}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen((open) => !open)}
+              aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={isMobileMenuOpen}
+              className="block md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 focus:outline-none"
+            >
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         )}
       </div>
+      {isAuthenticated && !isLanding && isMobileMenuOpen && (
+        <nav className="absolute left-0 top-full z-50 block w-full border-b border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900 md:hidden">
+          {mobileNavLinks.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-5 py-3 text-sm font-medium ${
+                  isActive
+                    ? 'text-amber-500'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                }`
+              }
+            >
+              <Icon className="h-4 w-4" />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      )}
     </header>
   );
 }
