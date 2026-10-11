@@ -183,10 +183,31 @@ exports.updateDepartment = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.deleteDepartment = async (req, res) => {
   try {
-    const department = await Department.findByIdAndDelete(req.params.id);
+    const department = await Department.findById(req.params.id);
     if (!department) {
       return res.status(404).json({ error: 'Department not found' });
     }
+
+    const categories = await Category.find({ departmentName: department.name }).select('issueName');
+    const categoryNames = categories.map((category) => category.issueName);
+    const accounts = categoryNames.length
+      ? await User.countDocuments({
+        $or: [
+          { assignedCategories: { $in: categoryNames } },
+          { departmentCategory: { $in: categoryNames } },
+        ],
+      })
+      : 0;
+
+    if (categories.length > 0 || accounts > 0) {
+      return res.status(409).json({
+        message: 'Department cannot be deleted while categories or accounts are assigned.',
+        error: 'Department cannot be deleted while categories or accounts are assigned.',
+        counts: { categories: categories.length, accounts },
+      });
+    }
+
+    await Department.findByIdAndDelete(req.params.id);
     res.status(200).json({
       message: 'Department deleted successfully',
       department: serializeDepartment(department),
@@ -328,10 +349,27 @@ exports.updateCategory = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.deleteCategory = async (req, res) => {
   try {
-    const category = await Category.findByIdAndDelete(req.params.id);
+    const category = await Category.findById(req.params.id);
     if (!category) {
       return res.status(404).json({ error: 'Category not found' });
     }
+
+    const accounts = await User.countDocuments({
+      $or: [
+        { assignedCategories: category.issueName },
+        { departmentCategory: category.issueName },
+      ],
+    });
+
+    if (accounts > 0) {
+      return res.status(409).json({
+        message: 'Category cannot be deleted while accounts are assigned.',
+        error: 'Category cannot be deleted while accounts are assigned.',
+        counts: { accounts },
+      });
+    }
+
+    await Category.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: 'Category deleted successfully', category });
   } catch (error) {
     res.status(500).json({ error: error.message });
