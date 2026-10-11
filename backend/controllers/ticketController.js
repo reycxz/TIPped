@@ -488,6 +488,15 @@ exports.updateTicket = async (req, res) => {
       if (!userCats.includes(ticket.issueCategory)) {
         return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
       }
+
+      if (ticket.status === 'Resolved') {
+        return res.status(403).json({ error: 'Resolved tickets can only be reopened by an admin.' });
+      }
+
+      const statusOrder = ['Pending', 'In Progress', 'Resolved'];
+      if (status && statusOrder.indexOf(status) < statusOrder.indexOf(ticket.status)) {
+        return res.status(400).json({ error: 'Status can only move forward.' });
+      }
     }
 
     if (status === 'Resolved' && (!adminNote || !adminNote.trim())) {
