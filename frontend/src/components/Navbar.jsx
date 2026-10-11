@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import TippedLogo from './TippedLogo';
 import {
   Settings,
@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Shield,
   ChartNoAxesColumn,
+  ChevronDown,
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useHeroOutOfView } from '../hooks/useHeroOutOfView';
@@ -30,10 +31,21 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [mobileExpandedPanel, setMobileExpandedPanel] = useState(null);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
+  );
   const dropdownRef = useRef(null);
   const notificationsRef = useRef(null);
   const mobileMenuRef = useRef(null);
+  const mobileMenuButtonRef = useRef(null);
+  const mobileNotificationsButtonRef = useRef(null);
+  const mobileSettingsButtonRef = useRef(null);
+  const mobileNotificationsPanelRef = useRef(null);
+  const mobileSettingsPanelRef = useRef(null);
+  const previousMobilePanelRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const isHeroOutOfView = useHeroOutOfView(isLanding);
 
   // Normalize user and role - strictly identify authenticated users
@@ -45,6 +57,61 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
 
   // Close dropdown on outside click
   useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    const handleBreakpointChange = (event) => {
+      setIsDesktopViewport(event.matches);
+      setDropdownOpen(false);
+      setNotificationsOpen(false);
+      setIsMobileMenuOpen(false);
+      setMobileExpandedPanel(null);
+    };
+    mediaQuery.addEventListener('change', handleBreakpointChange);
+    return () => mediaQuery.removeEventListener('change', handleBreakpointChange);
+  }, []);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+    setMobileExpandedPanel(null);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen || isDesktopViewport) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (mobileExpandedPanel) {
+        setMobileExpandedPanel(null);
+      } else {
+        setIsMobileMenuOpen(false);
+        mobileMenuButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isDesktopViewport, isMobileMenuOpen, mobileExpandedPanel]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen || !mobileExpandedPanel) {
+      if (previousMobilePanelRef.current) {
+        const previousRef = previousMobilePanelRef.current === 'notifications'
+          ? mobileNotificationsButtonRef
+          : mobileSettingsButtonRef;
+        if (isMobileMenuOpen) previousRef.current?.focus();
+        else mobileMenuButtonRef.current?.focus();
+      }
+      previousMobilePanelRef.current = null;
+      return;
+    }
+
+    previousMobilePanelRef.current = mobileExpandedPanel;
+    const panelRef = mobileExpandedPanel === 'notifications'
+      ? mobileNotificationsPanelRef
+      : mobileSettingsPanelRef;
+    panelRef.current?.focus();
+  }, [isMobileMenuOpen, mobileExpandedPanel]);
+
+  useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
@@ -54,6 +121,7 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
       }
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
         setIsMobileMenuOpen(false);
+        setMobileExpandedPanel(null);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -127,6 +195,8 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
 
   const handleLogout = () => {
     setDropdownOpen(false);
+    setIsMobileMenuOpen(false);
+    setMobileExpandedPanel(null);
     if (onLogout) {
       onLogout();
     } else {
@@ -185,6 +255,94 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
             ]
           : []),
       ];
+
+  const notificationsContent = (
+    <>
+      <h2 className="px-4 pb-2 text-sm font-semibold text-slate-900 dark:text-white">
+        Notifications
+      </h2>
+      {notifications.length ? (
+        <ul className="max-h-72 overflow-y-auto">
+          {notifications.map((notification) => (
+            <li
+              key={notification.id}
+              className="border-t border-slate-100 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-200"
+            >
+              {notification.message}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          No notifications
+        </p>
+      )}
+    </>
+  );
+
+  const settingsContent = (
+    <>
+      <Link
+        to="/profile"
+        onClick={() => {
+          setDropdownOpen(false);
+          setIsMobileMenuOpen(false);
+          setMobileExpandedPanel(null);
+        }}
+        className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+      >
+        <User className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
+        <span>Profile</span>
+      </Link>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleDarkMode();
+        }}
+        className="w-full flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-amber-600 dark:hover:text-amber-400 transition-colors text-left cursor-pointer"
+      >
+        {isDarkMode ? (
+          <>
+            <Sun className="w-4 h-4 mr-3 text-amber-500" />
+            <span>Light Mode</span>
+          </>
+        ) : (
+          <>
+            <Moon className="w-4 h-4 mr-3 text-slate-500 dark:text-slate-400" />
+            <span>Dark Mode</span>
+          </>
+        )}
+      </button>
+
+      {user?.role === 'superadmin' && (
+        <Link
+          to="/archive"
+          onClick={() => {
+            setDropdownOpen(false);
+            setIsMobileMenuOpen(false);
+            setMobileExpandedPanel(null);
+          }}
+          className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+        >
+          <Archive className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
+          <span>Archived Reports</span>
+        </Link>
+      )}
+
+      <div className="border-t border-slate-200 dark:border-slate-700/60 my-1" />
+
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="w-full flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-red-600 dark:hover:text-red-400 transition-colors text-left cursor-pointer"
+      >
+        <LogOut className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
+        <span>Logout</span>
+      </button>
+    </>
+  );
 
   return (
     <header
@@ -263,7 +421,7 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
           </div>
         ) : (
           <div className="flex items-center gap-1">
-            {user?.role === 'user' && (
+            {isDesktopViewport && user?.role === 'user' && (
               <div className="relative" ref={notificationsRef}>
                 <button
                   type="button"
@@ -282,118 +440,77 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
                 </button>
                 {notificationsOpen && (
                   <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white py-2 shadow-xl dark:border-slate-700 dark:bg-slate-800">
-                    <h2 className="px-4 pb-2 text-sm font-semibold text-slate-900 dark:text-white">
-                      Notifications
-                    </h2>
-                    {notifications.length ? (
-                      <ul className="max-h-72 overflow-y-auto">
-                        {notifications.map((notification) => (
-                          <li
-                            key={notification.id}
-                            className="border-t border-slate-100 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-200"
-                          >
-                            {notification.message}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                        No notifications
-                      </p>
-                    )}
+                    {notificationsContent}
                   </div>
                 )}
               </div>
             )}
-            <div className="relative" ref={dropdownRef}>
-              <button
-                type="button"
-                onClick={() => setDropdownOpen((prev) => !prev)}
-                aria-label="Settings"
-                className="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors focus:outline-none"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-
-              {/* Settings Dropdown Menu */}
-              {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                <Link
-                  to="/profile"
-                  onClick={() => setDropdownOpen(false)}
-                  className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-                >
-                  <User className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
-                  <span>Profile</span>
-                </Link>
-
+            {isDesktopViewport && (
+              <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleDarkMode();
-                  }}
-                  className="w-full flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-amber-600 dark:hover:text-amber-400 transition-colors text-left cursor-pointer"
+                  onClick={() => setDropdownOpen((prev) => !prev)}
+                  aria-label="Settings"
+                  className="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors focus:outline-none"
                 >
-                  {isDarkMode ? (
-                    <>
-                      <Sun className="w-4 h-4 mr-3 text-amber-500" />
-                      <span>Light Mode</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon className="w-4 h-4 mr-3 text-slate-500 dark:text-slate-400" />
-                      <span>Dark Mode</span>
-                    </>
-                  )}
+                  <Settings className="w-5 h-5" />
                 </button>
 
-                {/* Constraint 3: Archived Reports link below Dark Mode toggle - Superadmin only */}
-                {user?.role === 'superadmin' && (
-                  <Link
-                    to="/archive"
-                    onClick={() => setDropdownOpen(false)}
-                    className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-                  >
-                    <Archive className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
-                    <span>Archived Reports</span>
-                  </Link>
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                    {settingsContent}
+                  </div>
                 )}
-
-                <div className="border-t border-slate-200 dark:border-slate-700/60 my-1" />
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-red-600 dark:hover:text-red-400 transition-colors text-left cursor-pointer"
-                >
-                  <LogOut className="w-4 h-4 mr-3 text-slate-400 dark:text-slate-400" />
-                  <span>Logout</span>
-                </button>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
             <button
               type="button"
-              onClick={() => setIsMobileMenuOpen((open) => !open)}
-              aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              ref={mobileMenuButtonRef}
+              onClick={() => {
+                if (isMobileMenuOpen) {
+                  setIsMobileMenuOpen(false);
+                  setMobileExpandedPanel(null);
+                } else {
+                  setDropdownOpen(false);
+                  setNotificationsOpen(false);
+                  setMobileExpandedPanel(null);
+                  setIsMobileMenuOpen(true);
+                }
+              }}
+              aria-label={
+                isMobileMenuOpen
+                  ? 'Close navigation menu'
+                  : unreadNotifications > 0
+                    ? `Open menu, ${unreadNotifications} unread notifications`
+                    : 'Open navigation menu'
+              }
               aria-expanded={isMobileMenuOpen}
-              className="block md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 focus:outline-none"
+              aria-controls="navbar-mobile-menu"
+              className="relative inline-flex h-11 w-11 flex-none items-center justify-center rounded-xl box-border m-0 p-0 md:hidden text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 focus:outline-none"
             >
-              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {unreadNotifications > 0 && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+              )}
+              {isMobileMenuOpen ? <X className="block h-6 w-6 m-0" /> : <Menu className="block h-6 w-6 m-0" />}
             </button>
           </div>
         )}
       </div>
-      {isAuthenticated && !isLanding && isMobileMenuOpen && (
-        <nav className="absolute left-0 top-full z-50 block w-full border-b border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900 md:hidden">
+      {isAuthenticated && !isLanding && !isDesktopViewport && isMobileMenuOpen && (
+        <nav
+          id="navbar-mobile-menu"
+          className="absolute left-0 top-full z-50 block max-h-[55vh] w-full overflow-y-auto border-b border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900 md:hidden"
+        >
           {mobileNavLinks.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                setMobileExpandedPanel(null);
+              }}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-5 py-3 text-sm font-medium ${
+                `flex min-h-12 items-center gap-3 px-5 py-3 text-sm font-medium ${
                   isActive
                     ? 'text-amber-500'
                     : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
@@ -404,6 +521,72 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
               <span>{label}</span>
             </NavLink>
           ))}
+
+          <div className="my-2 border-t border-slate-200 dark:border-slate-700" />
+
+          <button
+            type="button"
+            ref={mobileNotificationsButtonRef}
+            aria-expanded={mobileExpandedPanel === 'notifications'}
+            aria-controls="navbar-mobile-notifications"
+            onClick={() => {
+              setDropdownOpen(false);
+              setNotificationsOpen(false);
+              setMobileExpandedPanel((openPanel) => (
+                openPanel === 'notifications' ? null : 'notifications'
+              ));
+              if (mobileExpandedPanel !== 'notifications') setUnreadNotifications(0);
+            }}
+            className="flex min-h-12 w-full items-center gap-3 px-5 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <Bell className="h-4 w-4" />
+            <span className="flex-1">Notifications</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{unreadNotifications}</span>
+            <ChevronDown
+              className={`h-4 w-4 ${mobileExpandedPanel === 'notifications' ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {mobileExpandedPanel === 'notifications' && (
+            <div
+              id="navbar-mobile-notifications"
+              ref={mobileNotificationsPanelRef}
+              tabIndex={-1}
+              className="max-h-[55vh] overflow-y-auto border-t border-slate-200 bg-slate-50 py-2 outline-none dark:border-slate-700 dark:bg-slate-800"
+            >
+              {notificationsContent}
+            </div>
+          )}
+
+          <button
+            type="button"
+            ref={mobileSettingsButtonRef}
+            aria-expanded={mobileExpandedPanel === 'settings'}
+            aria-controls="navbar-mobile-settings"
+            onClick={() => {
+              setDropdownOpen(false);
+              setNotificationsOpen(false);
+              setMobileExpandedPanel((openPanel) => (
+                openPanel === 'settings' ? null : 'settings'
+              ));
+            }}
+            className="flex min-h-12 w-full items-center gap-3 px-5 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <Settings className="h-4 w-4" />
+            <span className="flex-1">Settings</span>
+            <ChevronDown
+              className={`h-4 w-4 ${mobileExpandedPanel === 'settings' ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {mobileExpandedPanel === 'settings' && (
+            <div
+              id="navbar-mobile-settings"
+              ref={mobileSettingsPanelRef}
+              tabIndex={-1}
+              className="max-h-[55vh] overflow-y-auto border-t border-slate-200 bg-slate-50 py-1 outline-none dark:border-slate-700 dark:bg-slate-800 [&_a]:min-h-11 [&_button]:min-h-11"
+            >
+              {settingsContent}
+            </div>
+          )}
         </nav>
       )}
     </header>

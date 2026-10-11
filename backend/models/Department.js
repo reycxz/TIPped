@@ -15,6 +15,10 @@ const departmentSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
       maxlength: [3, 'Department prefix cannot exceed 3 characters']
+    },
+    color: {
+      type: String,
+      match: /^#[0-9A-Fa-f]{6}$/
     }
   },
   {

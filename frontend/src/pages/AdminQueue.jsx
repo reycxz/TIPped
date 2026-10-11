@@ -1,25 +1,23 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { getMetrics, getAdminTickets, getCategories } from '../api/tickets';
+import { getAdminTickets, getCategories } from '../api/tickets';
 import {
   getDepartments,
   createDepartment,
-  deleteDepartment,
   getCategories as getAdminCategories,
   createCategory,
-  deleteCategory,
 } from '../api/adminData';
+import { getDepartmentAccounts } from '../api/auth';
+import { refreshDepartmentColors } from '../hooks/useDepartmentColors';
 import TicketDrawer from '../components/TicketDrawer';
+import ConsoleHeader from '../components/console/ConsoleHeader';
+import QueueList from '../components/console/QueueList';
+import RoutingPanel from '../components/routing/RoutingPanel';
 import { io } from 'socket.io-client';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ||
   (import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin);
 import {
-  Search,
-  Filter,
-  SlidersHorizontal,
-  Eye,
   X,
   Plus,
   Trash2,
@@ -36,13 +34,6 @@ export default function AdminQueue({ user }) {
   // Navigation tab state for Superadmin
   const [activeTab, setActiveTab] = useState('queue');
 
-  // KPI metrics strictly initialize at 0
-  const [metrics, setMetrics] = useState({
-    pending: 0,
-    inProgress: 0,
-    resolved: 0,
-  });
-
   // Tickets state
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,14 +41,14 @@ export default function AdminQueue({ user }) {
   // Drawer state
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
 
   // Controls
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [campusFilter, setCampusFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [departmentFilter, setDepartmentFilter] = useState('All');
   const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
 
   // Manage Routing states (Superadmin only) - Constraint 2
@@ -67,16 +58,14 @@ export default function AdminQueue({ user }) {
   const setRoutingDepts = setDepartments;
   const routingCats = categories;
   const setRoutingCats = setCategories;
+  const [routingAccounts, setRoutingAccounts] = useState([]);
   const [routingLoading, setRoutingLoading] = useState(false);
   const [routingError, setRoutingError] = useState('');
   const [routingSuccess, setRoutingSuccess] = useState('');
-
-  // Department form state
+  const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptPrefix, setNewDeptPrefix] = useState('');
   const [addingDept, setAddingDept] = useState(false);
-
-  // Category form state
   const [newCatIssueName, setNewCatIssueName] = useState('');
   const [newCatDeptName, setNewCatDeptName] = useState('');
   const [addingCat, setAddingCat] = useState(false);
@@ -94,20 +83,6 @@ export default function AdminQueue({ user }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch metrics dynamically
-  const fetchMetricsData = async () => {
-    try {
-      const data = await getMetrics();
-      setMetrics({
-        pending: Number(data.pending) || 0,
-        inProgress: Number(data.inProgress) || 0,
-        resolved: Number(data.resolved) || 0,
-      });
-    } catch (err) {
-      console.error('Failed to fetch admin metrics:', err);
-    }
-  };
-
   // Fetch categories for filtering
   useEffect(() => {
     getCategories()
@@ -123,8 +98,6 @@ export default function AdminQueue({ user }) {
       setLoading(true);
       const params = {};
       if (campusFilter !== 'All') params.campus = campusFilter;
-      if (statusFilter !== 'All') params.status = statusFilter;
-      if (categoryFilter !== 'All') params.category = categoryFilter;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
       const data = await getAdminTickets(params);
@@ -143,14 +116,10 @@ export default function AdminQueue({ user }) {
   };
 
   useEffect(() => {
-    fetchMetricsData();
-  }, []);
-
-  useEffect(() => {
     if (activeTab === 'queue') {
       fetchTicketsData();
     }
-  }, [campusFilter, statusFilter, categoryFilter, searchQuery, activeTab]);
+  }, [campusFilter, searchQuery, activeTab]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -169,7 +138,6 @@ export default function AdminQueue({ user }) {
         incomingTicket,
         ...previous.filter((existing) => existing._id !== incomingTicket._id)
       ]);
-      fetchMetricsData();
     };
 
     socket.on('newTicket', handleNewTicket);
@@ -183,15 +151,15 @@ export default function AdminQueue({ user }) {
   const fetchRoutingData = async () => {
     try {
       setRoutingLoading(true);
-      const [depts, cats] = await Promise.all([
+      setRoutingError('');
+      const [depts, cats, accounts] = await Promise.all([
         getDepartments(),
         getAdminCategories(),
+        getDepartmentAccounts(),
       ]);
       setRoutingDepts(Array.isArray(depts) ? depts : []);
       setRoutingCats(Array.isArray(cats) ? cats : []);
-      if (Array.isArray(depts) && depts.length > 0 && !newCatDeptName) {
-        setNewCatDeptName(depts[0].name);
-      }
+      setRoutingAccounts(Array.isArray(accounts) ? accounts : []);
     } catch (err) {
       console.error('Failed to fetch routing data:', err);
       setRoutingError(err.response?.data?.error || 'Failed to load routing data');
@@ -200,41 +168,29 @@ export default function AdminQueue({ user }) {
     }
   };
 
+  const reloadRoutingData = async () => {
+    await fetchRoutingData();
+    await refreshDepartmentColors();
+  };
+
   useEffect(() => {
-    if (user?.role === 'Superadmin' && activeTab === 'routing') {
+    if (user?.role?.toLowerCase() === 'superadmin' && activeTab === 'routing') {
       fetchRoutingData();
     }
   }, [user, activeTab]);
 
-  // Manage Routing: Add Department
-  const handleAddDepartment = async (e) => {
-    e.preventDefault();
-    setRoutingError('');
-    setRoutingSuccess('');
-
-    if (!newDeptName.trim() || !newDeptPrefix.trim()) {
-      setRoutingError('Department name and prefix are required.');
-      return;
+  const handleAddDepartment = async ({ name, prefix, color }) => {
+    if (!name.trim() || !prefix.trim()) {
+      throw new Error('Department name and prefix are required.');
     }
-
-    const cleanPrefix = newDeptPrefix.trim().toUpperCase();
+    const cleanPrefix = prefix.trim().toUpperCase();
     if (cleanPrefix.length > 3) {
-      setRoutingError('Prefix must be at most 3 characters.');
-      return;
+      throw new Error('Prefix must be at most 3 characters.');
     }
-
+    setAddingDept(true);
     try {
-      setAddingDept(true);
-      await createDepartment({
-        name: newDeptName.trim(),
-        prefix: cleanPrefix,
-      });
-      setNewDeptName('');
-      setNewDeptPrefix('');
-      setRoutingSuccess(`Department "${newDeptName.trim()}" created successfully.`);
-      fetchRoutingData();
-    } catch (err) {
-      setRoutingError(err.response?.data?.error || 'Failed to create department');
+      await createDepartment({ name: name.trim(), prefix: cleanPrefix, color });
+      await reloadRoutingData();
     } finally {
       setAddingDept(false);
     }
@@ -262,28 +218,17 @@ export default function AdminQueue({ user }) {
     }
   };
 
-  // Manage Routing: Add Category
-  const handleAddCategory = async (e) => {
-    e.preventDefault();
-    setRoutingError('');
-    setRoutingSuccess('');
-
-    if (!newCatIssueName.trim() || !newCatDeptName.trim()) {
-      setRoutingError('Issue name and assigned department are required.');
-      return;
+  const handleAddCategory = async ({ issueName, departmentName }) => {
+    if (!issueName.trim() || !departmentName.trim()) {
+      throw new Error('Issue name and assigned department are required.');
     }
-
+    setAddingCat(true);
     try {
-      setAddingCat(true);
       await createCategory({
-        issueName: newCatIssueName.trim(),
-        departmentName: newCatDeptName.trim(),
+        issueName: issueName.trim(),
+        departmentName: departmentName.trim(),
       });
-      setNewCatIssueName('');
-      setRoutingSuccess(`Category "${newCatIssueName.trim()}" created successfully.`);
-      fetchRoutingData();
-    } catch (err) {
-      setRoutingError(err.response?.data?.error || 'Failed to create category');
+      await reloadRoutingData();
     } finally {
       setAddingCat(false);
     }
@@ -308,53 +253,6 @@ export default function AdminQueue({ user }) {
       }
     } catch (err) {
       setRoutingError(err.response?.data?.error || 'Failed to delete category');
-    }
-  };
-
-  const adminName = user?.firstName || '{AdminName}';
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Pending':
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-500/10 text-pending border border-amber-500/30">
-            Pending
-          </span>
-        );
-      case 'In Progress':
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-sky-500/10 text-inProgress border border-sky-500/30">
-            In Progress
-          </span>
-        );
-      case 'Resolved':
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-500/10 text-resolved border border-emerald-500/30">
-            Resolved
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-700/50 text-muted">
-            {status}
-          </span>
-        );
-    }
-  };
-
-  // Constraint 6: Priority Color Mapping
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'Critical':
-        return 'bg-red-500';
-      case 'High':
-        return 'bg-orange-500';
-      case 'Medium':
-        return 'bg-yellow-500';
-      case 'Low':
-        return 'bg-slate-400';
-      default:
-        return 'bg-slate-700';
     }
   };
 
@@ -430,312 +328,100 @@ export default function AdminQueue({ user }) {
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
   }, [tickets, sortConfig]);
+  const departmentOptions = useMemo(() => {
+    const names = departments.length > 0
+      ? departments.map((department) => department.name).filter(Boolean)
+      : [...new Set(tickets.map((ticket) => ticket.assignedDepartment).filter(Boolean))];
+    return names.sort((left, right) => left.localeCompare(right));
+  }, [departments, tickets]);
+  useEffect(() => {
+    if (departmentFilter !== 'All' && !departmentOptions.includes(departmentFilter)) {
+      setDepartmentFilter('All');
+    }
+  }, [departmentFilter, departmentOptions]);
+  const departmentFilteredTickets = departmentFilter === 'All'
+    ? sortedTickets
+    : sortedTickets.filter((ticket) => ticket.assignedDepartment === departmentFilter);
+  const statusCounts = departmentFilteredTickets.reduce((counts, ticket) => {
+    counts.All += 1;
+    if (ticket.status === 'Pending') counts.Pending += 1;
+    if (ticket.status === 'In Progress') counts['In Progress'] += 1;
+    if (ticket.status === 'Resolved') counts.Resolved += 1;
+    return counts;
+  }, { All: 0, Pending: 0, 'In Progress': 0, Resolved: 0 });
+  const displayedTickets = statusFilter === 'All'
+    ? departmentFilteredTickets
+    : departmentFilteredTickets.filter((ticket) => ticket.status === statusFilter);
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Top Banner with Role-Aware Tab Switcher */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-colors duration-200">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-            Welcome, {adminName}!
-          </h1>
-        </div>
-
-        {/* Tab Switcher visible ONLY to Superadmins */}
-        {user?.role === 'Superadmin' && (
-          <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80">
-              <button
-                type="button"
-                onClick={() => setActiveTab('queue')}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                  activeTab === 'queue'
-                    ? 'bg-primary text-slate-900 shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <span>Queue</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('routing')}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                  activeTab === 'routing'
-                    ? 'bg-primary text-slate-900 shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Manage Routing</span>
-              </button>
-            </div>
-          )}
-        </div>
+      <ConsoleHeader
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        ticketCount={displayedTickets.length}
+        routingCount={departments.length}
+        user={user}
+        actionSlot={activeTab === 'routing' ? (
+          <button
+            type="button"
+            onClick={() => setDepartmentModalOpen(true)}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Department
+          </button>
+        ) : null}
+      />
 
       {/* ========================================================= */}
       {/* SECTION 1: QUEUE TAB */}
       {/* ========================================================= */}
       {activeTab === 'queue' && (
-        <>
-          {/* Controls: Expandable Search Icon & Filter Icon Dropdown */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm flex items-center justify-between transition-colors duration-200">
-            <div className="text-sm font-bold text-slate-900 dark:text-white">Queue</div>
-
-            <div className="flex items-center space-x-2">
-              {/* Expandable Search Control */}
-              <div className="relative flex items-center">
-                {searchOpen ? (
-                  <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-primary rounded-lg px-2.5 py-1.5 transition-all animate-in fade-in">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search ID"
-                      className="bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none w-32 sm:w-44"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setSearchOpen(false);
-                      }}
-                      aria-label="Clear"
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-1"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setSearchOpen(true)}
-                    aria-label="Search"
-                    className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-                  >
-                    <Search className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Filter Dropdown Menu */}
-              <div className="relative" ref={filterRef}>
-                <button
-                  type="button"
-                  onClick={() => setFilterOpen((prev) => !prev)}
-                  aria-label="Filter"
-                  className={`p-2 rounded-lg transition-colors ${
-                    filterOpen || campusFilter !== 'All' || statusFilter !== 'All' || categoryFilter !== 'All'
-                      ? 'text-primary bg-amber-500/10'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <Filter className="w-5 h-5" />
-                </button>
-
-                {filterOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-4 z-50 space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                        Campus
-                      </label>
-                      <select
-                        value={campusFilter}
-                        onChange={(e) => setCampusFilter(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
-                      >
-                        <option value="All">All</option>
-                        <option value="Arlegui">Arlegui</option>
-                        <option value="Casal">Casal</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                        Status
-                      </label>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
-                      >
-                        <option value="All">All</option>
-                        <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                        Category
-                      </label>
-                      <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
-                      >
-                        <option value="All">All</option>
-                        {user?.role === 'department' || user?.role?.toLowerCase() === 'department'
-                          ? (user?.categories || user?.assignedCategories || []).map((c) => {
-                              const catName = typeof c === 'string' ? c : (c.issueName || c.name || c);
-                              const key = (typeof c === 'object' && c._id) ? c._id : catName;
-                              return (
-                                <option key={key} value={catName}>
-                                  {catName}
-                                </option>
-                              );
-                            })
-                          : categories.map((c) => {
-                              const catName = typeof c === 'string' ? c : (c.issueName || c.name || c);
-                              const key = (typeof c === 'object' && c._id) ? c._id : catName;
-                              return (
-                                <option key={key} value={catName}>
-                                  {catName}
-                                </option>
-                              );
-                            })}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Ticket Queue Table */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm transition-colors duration-200">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold select-none">
-                  <tr>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('ticketId')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>ID</span>
-                        {renderSortIndicator('ticketId')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('category')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>Category</span>
-                        {renderSortIndicator('category')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('department')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>Department</span>
-                        {renderSortIndicator('department')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <span>Location</span>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('status')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>Status</span>
-                        {renderSortIndicator('status')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5 text-right">
-                      <span>Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
-                  {loading ? (
-                    <tr>
-                      <td colSpan="6" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
-                        Loading tickets...
-                      </td>
-                    </tr>
-                  ) : sortedTickets.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
-                        No tickets match the selected criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    sortedTickets.map((ticket) => (
-                      <tr key={ticket._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="px-4 py-3.5 font-mono text-xs font-semibold text-primary whitespace-nowrap">
-                          <div className="flex items-center">
-                            <span
-                              className={`w-3 h-3 rounded-full inline-block mr-2 flex-shrink-0 ${getPriorityColor(ticket.priority)}`}
-                              title={`Priority: ${ticket.priority || 'Unassigned'}`}
-                            />
-                            <span>{ticket.ticketId || <span className="text-gray-400 italic">No ID</span>}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5 font-medium text-slate-900 dark:text-white">
-                          {ticket.issueCategory || ticket.category || (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs">
-                          {ticket.assignedDepartment ? (
-                            ticket.assignedDepartment
-                          ) : (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs">
-                          {ticket.campus ? (
-                            <span>
-                              {ticket.campus}
-                              {ticket.locationInfo?.building ? ` - ${ticket.locationInfo.building}` : ''}
-                              {(ticket.locationInfo?.floor !== undefined || ticket.locationInfo?.room) ? (
-                                ` (Flr ${ticket.locationInfo?.floor ?? '?'}, Rm ${ticket.locationInfo?.room ?? '?'})`
-                              ) : ''}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5">
-                          {getStatusBadge(ticket.status)}
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedTicket(ticket);
-                              setDrawerOpen(true);
-                            }}
-                            aria-label="Manage"
-                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-                          >
-                            <SlidersHorizontal className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
+        <QueueList
+          tickets={displayedTickets}
+          loading={loading}
+          statusCounts={statusCounts}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          filterOpen={filterOpen}
+          setFilterOpen={setFilterOpen}
+          campusFilter={campusFilter}
+          setCampusFilter={setCampusFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          departmentFilter={departmentFilter}
+          setDepartmentFilter={setDepartmentFilter}
+          departmentOptions={departmentOptions}
+          user={user}
+          handleSort={handleSort}
+          renderSortIndicator={renderSortIndicator}
+          selectedTicketId={selectedTicketId}
+          setSelectedTicketId={setSelectedTicketId}
+          setSelectedTicket={setSelectedTicket}
+          setDrawerOpen={setDrawerOpen}
+          filterRef={filterRef}
+        />
       )}
 
       {/* ========================================================= */}
       {/* SECTION 2: MANAGE ROUTING TAB (Superadmin Only) */}
       {/* ========================================================= */}
-      {activeTab === 'routing' && user?.role === 'Superadmin' && (
+      {activeTab === 'routing' && user?.role?.toLowerCase() === 'superadmin' && (
+        <RoutingPanel
+          departments={departments}
+          categories={categories}
+          accounts={routingAccounts}
+          loading={routingLoading}
+          loadError={routingError}
+          onDismissLoadError={() => setRoutingError('')}
+          departmentModalOpen={departmentModalOpen}
+          onDepartmentModalClose={() => setDepartmentModalOpen(false)}
+          onAddDepartment={handleAddDepartment}
+          onAddCategory={handleAddCategory}
+          onReload={reloadRoutingData}
+        />
+      )}
+      {activeTab === 'routing-legacy' && user?.role?.toLowerCase() === 'superadmin' && (
         <div className="space-y-6">
           {/* Notifications */}
           {routingError && (
