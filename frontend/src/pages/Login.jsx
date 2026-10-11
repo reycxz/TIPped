@@ -167,7 +167,7 @@ export default function Login({
   });
 
   const cardContent = (
-    <div data-hiw-signin-card="true" className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 shadow-xl transition-colors duration-200">
+    <div data-hiw-signin-card="true" className="w-full max-w-md 2xl:max-w-lg 3xl:max-w-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 2xl:p-10 3xl:p-12 shadow-xl transition-colors duration-200">
       {/* Header - 1-2 words only, no subtitles */}
       <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-6 text-center">
         Sign In
@@ -199,7 +199,7 @@ export default function Login({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
-            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+            className="w-full px-3 py-2.5 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
           />
         </div>
 
@@ -223,7 +223,7 @@ export default function Login({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
-              className="w-full px-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              className="w-full px-3 pr-10 py-2.5 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
             />
             <button
               type="button"
@@ -243,7 +243,7 @@ export default function Login({
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors mt-2 cursor-pointer"
+          className="w-full py-2.5 2xl:py-3 3xl:py-3.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm 2xl:text-base transition-colors mt-2 cursor-pointer"
         >
           {loading ? 'Submitting...' : 'Sign In'}
         </button>
@@ -275,7 +275,7 @@ export default function Login({
           type="button"
           onClick={() => handleGoogleSignIn()}
           disabled={googleLoading}
-          className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white font-semibold rounded-lg text-sm transition-colors flex items-center justify-center space-x-2.5 cursor-pointer disabled:opacity-50 shadow-sm"
+          className="w-full py-2.5 2xl:py-3 3xl:py-3.5 px-4 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white font-semibold rounded-lg text-sm 2xl:text-base transition-colors flex items-center justify-center space-x-2.5 cursor-pointer disabled:opacity-50 shadow-sm"
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
             <path

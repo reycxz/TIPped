@@ -349,7 +349,7 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
       ref={mobileMenuRef}
       className="relative w-full bg-mist dark:bg-midnight text-midnight dark:text-mist border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 transition-colors duration-200"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Brand Logo & Navigation Links */}
         <div className="flex items-center space-x-8">
           <Link
