@@ -26,6 +26,7 @@ const getFirstUnusedColor = (departments) => {
 
 function AccessiblePopover({
   label,
+  triggerTitle,
   triggerClassName,
   triggerContent,
   panelClassName = '',
@@ -83,6 +84,7 @@ function AccessiblePopover({
         ref={triggerRef}
         type="button"
         aria-label={label}
+        title={triggerTitle}
         aria-expanded={open}
         aria-haspopup={panelRole === 'menu' ? 'menu' : 'dialog'}
         onClick={() => setOpen((previous) => !previous)}
@@ -543,7 +545,8 @@ export default function RoutingPanel({
                       {department.prefix}
                     </span>
                     <AccessiblePopover
-                      label={`More options for ${department.name}`}
+                      label="Department options"
+                      triggerTitle="Department options"
                       panelRole="menu"
                       triggerClassName="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
                       triggerContent={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
@@ -574,8 +577,8 @@ export default function RoutingPanel({
                         <span className="min-w-0 truncate">{category.issueName}</span>
                         <button
                           type="button"
-                          aria-label="Delete category"
-                          title={`Delete ${category.issueName}`}
+                          aria-label={`Remove category ${category.issueName}`}
+                          title={`Remove category ${category.issueName}`}
                           onClick={() => beginDelete('category', category)}
                           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:hover:bg-white/10"
                         >
