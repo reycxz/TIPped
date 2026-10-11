@@ -1,10 +1,14 @@
+import { useEffect, useRef, useState } from 'react';
 import {
   Filter,
   MoreHorizontal,
   Search,
   X,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import useDepartmentColors from '../../hooks/useDepartmentColors';
+import StatusBadge from './StatusBadge';
+import TicketDetailPanel from './TicketDetailPanel';
 
 const getCampusCode = (ticket) => {
   const campus = ticket.campus?.toLowerCase();
@@ -14,29 +18,6 @@ const getCampusCode = (ticket) => {
   const prefix = ticket.ticketId?.split('-')[0]?.toUpperCase();
   return prefix === 'CAS' || prefix === 'ARL' ? prefix : '—';
 };
-
-const getStatusLabel = (status) => (status === 'In Progress' ? 'In progress' : status);
-
-const getStatusClasses = (status) => {
-  switch (status) {
-    case 'Pending':
-      return 'border-amber-500/30 bg-amber-500/10 text-pending';
-    case 'In Progress':
-      return 'border-sky-500/30 bg-sky-500/10 text-inProgress';
-    case 'Resolved':
-      return 'border-emerald-500/30 bg-emerald-500/10 text-resolved';
-    default:
-      return 'border-slate-300 bg-slate-100 text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300';
-  }
-};
-
-function StatusBadge({ status }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[13px] font-bold ${getStatusClasses(status)}`}>
-      {getStatusLabel(status)}
-    </span>
-  );
-}
 
 function CampusTag({ ticket }) {
   const campusCode = getCampusCode(ticket);
@@ -105,11 +86,17 @@ export default function QueueList({
   filterRef,
 }) {
   const { getTicketColor } = useDepartmentColors();
+  const [isLargeViewport, setIsLargeViewport] = useState(false);
+  const sheetRef = useRef(null);
+  const openerRef = useRef(null);
+  const skipSheetFocusRestoreRef = useRef(false);
   const isDepartmentAccount = user?.role === 'department' || user?.role?.toLowerCase() === 'department';
+  const selectedRow = tickets.find((ticket) => ticket._id === selectedTicketId);
+  const isSheetOpen = Boolean(selectedRow) && !isLargeViewport;
   const gridColumns = isDepartmentAccount
-    ? 'grid-cols-[minmax(6rem,0.8fr)_minmax(12rem,1.8fr)_minmax(12rem,2fr)_minmax(7rem,1fr)_2.75rem]'
-    : 'grid-cols-[minmax(6rem,0.8fr)_minmax(12rem,1.8fr)_minmax(11rem,1.5fr)_minmax(12rem,1.8fr)_minmax(7rem,1fr)_2.75rem]';
-  const desktopMinWidth = isDepartmentAccount ? 'min-w-[820px]' : 'min-w-[1000px]';
+    ? 'grid-cols-[minmax(5.5rem,0.7fr)_minmax(9rem,1.6fr)_minmax(9rem,1.8fr)_7.5rem_2.75rem]'
+    : 'grid-cols-[minmax(5.5rem,0.7fr)_minmax(8rem,1.5fr)_minmax(8rem,1.2fr)_minmax(8rem,1.5fr)_7.5rem_2.75rem]';
+  const desktopMinWidth = isDepartmentAccount ? 'min-w-[600px]' : 'min-w-[720px]';
   const metricCounts = {
     All: metrics.pending + metrics.inProgress + metrics.resolved,
     Pending: metrics.pending,
@@ -123,7 +110,67 @@ export default function QueueList({
     { value: 'Resolved', label: 'Resolved', dotClass: 'bg-emerald-500' },
   ];
 
-  const selectTicket = (ticket) => setSelectedTicketId(ticket._id);
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const updateViewport = () => setIsLargeViewport(mediaQuery.matches);
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+    return () => mediaQuery.removeEventListener('change', updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isSheetOpen) return undefined;
+
+    const dialog = sheetRef.current;
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusableElements = () => Array.from(dialog?.querySelectorAll(focusableSelector) || []);
+    (focusableElements()[0] || dialog)?.focus();
+
+    const handleSheetKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setSelectedTicketId(null);
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+      const focusable = focusableElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!dialog?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleSheetKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleSheetKeyDown);
+      if (!skipSheetFocusRestoreRef.current && openerRef.current?.isConnected) {
+        openerRef.current.focus();
+      }
+      skipSheetFocusRestoreRef.current = false;
+    };
+  }, [isSheetOpen, setSelectedTicketId]);
+
+  const selectTicket = (ticket, event) => {
+    openerRef.current = event.currentTarget;
+    setSelectedTicketId(ticket._id);
+  };
   const openTicket = (ticket) => {
     setSelectedTicket(ticket);
     setDrawerOpen(true);
@@ -131,8 +178,17 @@ export default function QueueList({
   const handleRowKeyDown = (event, ticket) => {
     if (event.key === 'Enter' && !event.target.closest('button')) {
       event.preventDefault();
-      selectTicket(ticket);
+      selectTicket(ticket, event);
     }
+  };
+  const closeSheet = () => setSelectedTicketId(null);
+  const updateSelectedRow = () => {
+    if (!selectedRow) return;
+    if (!isLargeViewport) {
+      skipSheetFocusRestoreRef.current = true;
+      setSelectedTicketId(null);
+    }
+    openTicket(selectedRow);
   };
 
   return (
@@ -164,7 +220,8 @@ export default function QueueList({
         </div>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
+      <div className="min-w-0 flex-1 rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800">
         <div className="flex flex-col gap-3 rounded-t-3xl border-b border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
@@ -284,7 +341,7 @@ export default function QueueList({
           <div role="table" aria-label="Ticket queue" className={desktopMinWidth}>
             <div
               role="row"
-              className={`grid ${gridColumns} gap-4 border-b border-slate-200 bg-slate-50 px-4 dark:border-slate-700 dark:bg-slate-900/60`}
+              className={`grid ${gridColumns} gap-3 border-b border-slate-200 bg-slate-50 px-4 dark:border-slate-700 dark:bg-slate-900/60`}
             >
               <div role="columnheader"><SortHeader label="ID" sortKey="ticketId" handleSort={handleSort} renderSortIndicator={renderSortIndicator} /></div>
               <div role="columnheader"><SortHeader label="Category" sortKey="category" handleSort={handleSort} renderSortIndicator={renderSortIndicator} /></div>
@@ -314,9 +371,9 @@ export default function QueueList({
                     role="row"
                     tabIndex={0}
                     aria-selected={isSelected}
-                    onClick={() => selectTicket(ticket)}
+                    onClick={(event) => selectTicket(ticket, event)}
                     onKeyDown={(event) => handleRowKeyDown(event, ticket)}
-                    className={`grid min-h-16 ${gridColumns} gap-4 border-t border-slate-100 px-4 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary dark:border-slate-700/40 ${
+                    className={`grid min-h-16 ${gridColumns} gap-3 border-t border-slate-100 px-4 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary dark:border-slate-700/40 ${
                       isSelected
                         ? 'bg-amber-500/10'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
@@ -344,7 +401,7 @@ export default function QueueList({
                     <div role="cell" className="flex min-w-0 items-center text-sm text-slate-600 dark:text-slate-300">
                       <LocationText ticket={ticket} clamp />
                     </div>
-                    <div role="cell" className="flex items-center">
+                    <div role="cell" className="flex items-center whitespace-nowrap">
                       <StatusBadge status={ticket.status} />
                     </div>
                     <div role="cell" className="flex items-center justify-end">
@@ -381,12 +438,12 @@ export default function QueueList({
                   role="button"
                   tabIndex={0}
                   aria-pressed={isSelected}
-                  onClick={() => selectTicket(ticket)}
+                  onClick={(event) => selectTicket(ticket, event)}
                   onKeyDown={(event) => {
                     if (event.target.closest('button')) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
-                      selectTicket(ticket);
+                      selectTicket(ticket, event);
                     }
                   }}
                   className={`space-y-2.5 rounded-2xl border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
@@ -434,6 +491,42 @@ export default function QueueList({
           )}
         </div>
       </div>
+      {selectedRow && isLargeViewport && (
+        <div className="sticky top-4 max-h-[calc(100vh-2rem)] w-[340px] shrink-0 self-start overflow-y-auto">
+          <TicketDetailPanel
+            key={selectedRow._id}
+            ticket={selectedRow}
+            onClose={() => setSelectedTicketId(null)}
+            onUpdate={updateSelectedRow}
+          />
+        </div>
+      )}
+      </div>
+      {selectedRow && !isLargeViewport && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-end bg-black/60"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeSheet();
+          }}
+        >
+          <section
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ticket details"
+            tabIndex={-1}
+            className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] outline-none dark:bg-slate-800"
+          >
+            <TicketDetailPanel
+              key={selectedRow._id}
+              ticket={selectedRow}
+              onClose={closeSheet}
+              onUpdate={updateSelectedRow}
+            />
+          </section>
+        </div>,
+        document.body
+      )}
     </section>
   );
 }
