@@ -45,8 +45,6 @@ export default function DepartmentAccountForm({
   categories,
   lockedDepartmentName,
   categoryDetails = [],
-  showContext = false,
-  groupByDepartment = false,
   onSaved,
   onClose,
 }) {
@@ -59,31 +57,11 @@ export default function DepartmentAccountForm({
   const isEditing = mode === 'edit';
   const titleId = `${id}-title`;
   const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
-  const primaryCategory = account?.departmentCategory || formData.assignedCategories[0] || '';
-  const accountDepartmentName = categoryDetails.find(
-    (category) => normalize(category.issueName) === normalize(primaryCategory)
-  )?.departmentName;
-  const contextDepartmentName = accountDepartmentName || primaryCategory;
-  const categoryGroups = groupByDepartment
-    ? categories.reduce((groups, category) => {
-      const departmentName = categoryDetails.find(
-        (categoryDetail) => normalize(categoryDetail.issueName) === normalize(category)
-      )?.departmentName || 'Other';
-      const existingGroup = groups.find(
-        (group) => normalize(group.departmentName) === normalize(departmentName)
-      );
-      if (existingGroup) {
-        existingGroup.categories.push(category);
-      } else {
-        groups.push({ departmentName, categories: [category] });
-      }
-      return groups;
-    }, []).sort((first, second) => {
-      if (accountDepartmentName && normalize(first.departmentName) === normalize(accountDepartmentName)) return -1;
-      if (accountDepartmentName && normalize(second.departmentName) === normalize(accountDepartmentName)) return 1;
-      return 0;
-    })
-    : [{ departmentName: null, categories }];
+  const departmentCategoryNames = new Set(
+    categoryDetails
+      .filter((category) => normalize(category.departmentName) === normalize(lockedDepartmentName))
+      .map((category) => category.issueName)
+  );
 
   const handleSave = async (event) => {
     event.preventDefault();
@@ -97,7 +75,11 @@ export default function DepartmentAccountForm({
       firstName: formData.firstName,
       lastName: formData.lastName,
       assignedCategories: formData.assignedCategories,
-      departmentCategory: formData.assignedCategories[0] || '',
+      departmentCategory: isEditing
+        ? formData.assignedCategories.find((category) => departmentCategoryNames.has(category))
+          || account?.departmentCategory
+          || ''
+        : formData.assignedCategories[0] || '',
       password: formData.password || undefined,
     };
 
@@ -144,15 +126,15 @@ export default function DepartmentAccountForm({
           <h2 id={titleId} className="font-display text-xl font-extrabold">
             {isEditing ? 'Edit Account' : 'Create Account'}
           </h2>
-          {isEditing && showContext && (
+          {isEditing && (
             <>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{account?.email}</p>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Department: <span className="font-semibold text-slate-700 dark:text-slate-200">{contextDepartmentName}</span>
+                Department: <span className="font-semibold text-slate-700 dark:text-slate-200">{lockedDepartmentName}</span>
               </p>
             </>
           )}
-          {lockedDepartmentName && (
+          {!isEditing && lockedDepartmentName && (
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Department: <span className="font-semibold text-slate-700 dark:text-slate-200">{lockedDepartmentName}</span>
             </p>
@@ -224,51 +206,39 @@ export default function DepartmentAccountForm({
               {formData.assignedCategories.length} selected
             </span>
           </legend>
-          {showContext && (
-            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              The first checked category sets the account's department.
-            </p>
-          )}
           <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900">
-            {categoryGroups.map((group) => (
-              <div key={group.departmentName || 'categories'}>
-                {group.departmentName && (
-                  <h3 className="px-2.5 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    {group.departmentName}
-                  </h3>
-                )}
-                {group.categories.map((category) => {
-                  const isChecked = formData.assignedCategories.includes(category);
-                  return (
-                    <label
-                      key={category}
-                      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded px-2.5 text-sm transition-colors ${
-                        isChecked
-                          ? 'bg-amber-500/10 font-medium text-amber-700 dark:text-amber-400'
-                          : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        value={category}
-                        checked={isChecked}
-                        onChange={(event) => {
-                          const updated = event.target.checked
-                            ? [...formData.assignedCategories, category]
-                            : formData.assignedCategories.filter((item) => item !== category);
-                          setFormData({
-                            ...formData,
-                            assignedCategories: updated,
-                          });
-                        }}
-                        className="h-4 w-4 rounded border-slate-400 bg-white text-amber-500 focus-visible:ring-2 focus-visible:ring-primary dark:bg-slate-900"
-                      />
-                      <span>{category}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            ))}
+            {categories.map((category) => {
+              const isChecked = formData.assignedCategories.includes(category);
+              const isLocked = isEditing && !departmentCategoryNames.has(category);
+              return (
+                <label
+                  key={category}
+                  className={`flex min-h-11 items-center gap-3 rounded px-2.5 text-sm transition-colors ${
+                    isChecked
+                      ? 'bg-amber-500/10 font-medium text-amber-700 dark:text-amber-400'
+                      : 'text-slate-700 dark:text-slate-300'
+                  } ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <input
+                    type="checkbox"
+                    value={category}
+                    checked={isChecked}
+                    disabled={isLocked}
+                    onChange={(event) => {
+                      const updated = event.target.checked
+                        ? [...formData.assignedCategories, category]
+                        : formData.assignedCategories.filter((item) => item !== category);
+                      setFormData({
+                        ...formData,
+                        assignedCategories: updated,
+                      });
+                    }}
+                    className="h-4 w-4 rounded border-slate-400 bg-white text-amber-500 focus-visible:ring-2 focus-visible:ring-primary dark:bg-slate-900"
+                  />
+                  <span className={isLocked ? 'text-slate-500 dark:text-slate-400' : ''}>{category}</span>
+                </label>
+              );
+            })}
             {categories.length === 0 && (
               <p className="py-3 text-center text-sm text-slate-500 dark:text-slate-400">
                 No categories available

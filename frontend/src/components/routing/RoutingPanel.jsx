@@ -421,14 +421,18 @@ export default function RoutingPanel({
   };
 
   const openAccountForm = (mode, account, department, departmentCategories) => {
+    const ownCategoryNames = departmentCategories.map((category) => category.issueName);
+    const assignedOtherCategories = mode === 'edit'
+      ? (Array.isArray(account?.assignedCategories) ? account.assignedCategories : []).filter((categoryName) => (
+        !ownCategoryNames.includes(categoryName)
+      ))
+      : [];
     setAccountForm({
       mode,
       account,
-      categories: mode === 'create' ? departmentCategories : categories.map((category) => category.issueName),
+      categories: [...ownCategoryNames, ...assignedOtherCategories],
       categoryDetails: categories,
-      showContext: true,
-      groupByDepartment: mode === 'edit',
-      lockedDepartmentName: mode === 'create' ? department.name : undefined,
+      lockedDepartmentName: department.name,
     });
   };
 
@@ -609,22 +613,21 @@ export default function RoutingPanel({
                         </div>
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      disabled={departmentCategories.length === 0}
-                      aria-disabled={departmentCategories.length === 0}
-                      title={departmentCategories.length === 0 ? 'Add a category first' : undefined}
-                      onClick={() => openAccountForm(
-                        'create',
-                        null,
-                        department,
-                        departmentCategories.map((category) => category.issueName)
-                      )}
-                      className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-slate-300 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                      {departmentAccounts.length > 0 ? 'Add another account' : 'Account'}
-                    </button>
+                    {departmentAccounts.length === 0 && departmentCategories.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openAccountForm('create', null, department, departmentCategories)}
+                        className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-slate-300 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                        Create account
+                      </button>
+                    )}
+                    {departmentAccounts.length === 0 && departmentCategories.length === 0 && (
+                      <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                        Add a category first
+                      </p>
+                    )}
                   </div>
                 </article>
               );
@@ -654,8 +657,6 @@ export default function RoutingPanel({
           account={accountForm.account}
           categories={accountForm.categories}
           categoryDetails={accountForm.categoryDetails}
-          showContext={accountForm.showContext}
-          groupByDepartment={accountForm.groupByDepartment}
           lockedDepartmentName={accountForm.lockedDepartmentName}
           onSaved={handleAccountSaved}
           onClose={() => setAccountForm(null)}
