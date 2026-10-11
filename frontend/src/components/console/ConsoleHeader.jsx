@@ -22,7 +22,7 @@ export default function ConsoleHeader({
   const pillName = departmentName || categoryName;
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm flex flex-wrap items-center justify-between gap-4 transition-colors duration-200">
+    <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <h1 className="font-display text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white md:text-4xl">
           {activeTab === 'routing' ? 'Routing' : 'Queue'}
