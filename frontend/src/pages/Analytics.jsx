@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { getCategories } from '../api/tickets';
-import { getDepartmentAccounts } from '../api/auth';
-import DepartmentAccountForm from '../components/DepartmentAccountForm';
 import useDepartmentColors from '../hooks/useDepartmentColors';
 import {
-  Plus,
-  Trash2,
-  Edit2,
   AlertCircle,
   CheckCircle2,
   UserRound,
@@ -19,20 +13,14 @@ import {
   ChevronDown,
 } from 'lucide-react';
 
-export default function Analytics({ user }) {
+export default function Analytics() {
   const { getCategoryColor } = useDepartmentColors();
   const [timeframe, setTimeframe] = useState('All Time');
   const [campus, setCampus] = useState('All');
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Administrative Department accounts state
-  const [accounts, setAccounts] = useState([]);
-  const [allCategories, setAllCategories] = useState([]);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  const [accountForm, setAccountForm] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -66,69 +54,6 @@ export default function Analytics({ user }) {
       isMounted = false;
     };
   }, [campus, timeframe]);
-
-  const loadAdminAccounts = async () => {
-    if (user?.role === 'Superadmin' || user?.role?.toLowerCase() === 'superadmin') {
-      try {
-        const [deptsData, catsData] = await Promise.all([
-          getDepartmentAccounts(),
-          getCategories(),
-        ]);
-        setAccounts(Array.isArray(deptsData) ? deptsData : []);
-        setAllCategories(Array.isArray(catsData) ? catsData : []);
-      } catch (err) {
-        console.error('Failed to load department accounts:', err);
-      }
-    }
-  };
-
-  useEffect(() => {
-    loadAdminAccounts();
-  }, [user]);
-
-  const openCreateModal = () => {
-    setAccountForm({ mode: 'create' });
-    setError('');
-    setSuccess('');
-  };
-
-  const openEditModal = (dept) => {
-    setAccountForm({ mode: 'edit', account: dept });
-    setError('');
-    setSuccess('');
-  };
-
-  const handleAccountSaved = (action) => {
-    setSuccess(
-      action === 'created'
-        ? 'Account created'
-        : action === 'deleted'
-          ? 'Account deleted'
-          : 'Account updated'
-    );
-    loadAdminAccounts();
-  };
-
-  const handleDeleteAccount = async (accountId) => {
-    if (!window.confirm('Permanently delete this account from the database?')) {
-      return;
-    }
-    setError('');
-    setSuccess('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-      const response = await axios.delete(`/api/admin/users/${accountId}`, config);
-
-      if (response.status === 200) {
-        setAccounts((prev) => prev.filter((acc) => acc._id !== accountId));
-        setSuccess('Account deleted');
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || 'Delete failed');
-    }
-  };
 
   const categoryCounts = stats?.categories || [];
   const maxCategoryCount = Math.max(0, ...categoryCounts.map((category) => category.count || 0));
@@ -195,13 +120,6 @@ export default function Analytics({ user }) {
         <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-500 text-xs rounded-lg flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs rounded-lg flex items-center space-x-2 font-mono">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{success}</span>
         </div>
       )}
 
@@ -294,88 +212,6 @@ export default function Analytics({ user }) {
         </>
       )}
 
-      {/* Superadmin Department Accounts Management */}
-      {(user?.role === 'Superadmin' || user?.role?.toLowerCase() === 'superadmin') && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-bold text-slate-900 dark:text-white">
-              Department Accounts
-            </div>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="py-1.5 px-3 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-xs font-semibold transition-colors flex items-center space-x-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Account</span>
-            </button>
-          </div>
-
-          {accounts.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-xs">
-              No active accounts
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-200 dark:divide-slate-700/60">
-              {accounts.map((dept) => (
-                <div
-                  key={dept._id}
-                  className="py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900/50 px-2 rounded-lg transition-colors"
-                >
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">
-                      {dept.firstName} {dept.lastName}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
-                      <span>{dept.email}</span>
-                      <span className="text-slate-300 dark:text-slate-600">|</span>
-                      <span>Categories:</span>
-                      {(Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
-                        ? dept.assignedCategories
-                        : [dept.departmentCategory || 'General']
-                      ).map((c) => (
-                        <span key={c} className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-semibold">
-                          {c}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(dept)}
-                      aria-label="Edit"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAccount(dept._id)}
-                      aria-label="Delete"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {accountForm && (
-        <DepartmentAccountForm
-          key={`${accountForm.mode}-${accountForm.account?._id || 'create'}`}
-          mode={accountForm.mode}
-          account={accountForm.account}
-          categories={allCategories}
-          onSaved={handleAccountSaved}
-          onClose={() => setAccountForm(null)}
-        />
-      )}
     </div>
   );
 }
