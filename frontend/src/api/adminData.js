@@ -20,6 +20,21 @@ export const getDepartments = async () => {
   return response.data;
 };
 
+export const getDepartmentColors = async () => {
+  const [departmentsResponse, categoriesResponse] = await Promise.all([
+    api.get('/departments'),
+    api.get('/categories'),
+  ]);
+
+  return {
+    departments: departmentsResponse.data.map(({ name, color }) => ({ name, color: color || null })),
+    categories: categoriesResponse.data.map(({ issueName, departmentName }) => ({
+      issueName,
+      departmentName,
+    })),
+  };
+};
+
 export const createDepartment = async (deptData) => {
   const response = await api.post('/departments', deptData);
   return response.data;

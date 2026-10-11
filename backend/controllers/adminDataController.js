@@ -1,6 +1,23 @@
 const Department = require('../models/Department');
 const Category = require('../models/Category');
 const User = require('../models/User');
+const DEPARTMENT_PALETTE = [
+  '#8B5CF6',
+  '#EC4899',
+  '#EF4444',
+  '#6366F1',
+  '#14B8A6',
+  '#D946EF',
+  '#F97316',
+  '#84CC16',
+  '#06B6D4',
+  '#94A3B8',
+];
+
+const serializeDepartment = (department) => {
+  const departmentData = department.toObject ? department.toObject() : department;
+  return { ...departmentData, color: departmentData.color || null };
+};
 
 // ==========================================
 // DEPARTMENT CONTROLLER METHODS
@@ -12,7 +29,7 @@ const User = require('../models/User');
 exports.getDepartments = async (req, res) => {
   try {
     const departments = await Department.find().sort({ name: 1 });
-    res.json(departments);
+    res.json(departments.map(serializeDepartment));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -27,7 +44,7 @@ exports.getDepartmentById = async (req, res) => {
     if (!department) {
       return res.status(404).json({ error: 'Department not found' });
     }
-    res.json(department);
+    res.json(serializeDepartment(department));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -38,7 +55,7 @@ exports.getDepartmentById = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.createDepartment = async (req, res) => {
   try {
-    const { name, prefix } = req.body;
+    const { name, prefix, color } = req.body;
 
     if (!name || !prefix) {
       return res.status(400).json({ error: 'Department name and prefix are required' });
@@ -49,6 +66,10 @@ exports.createDepartment = async (req, res) => {
 
     if (cleanPrefix.length > 3) {
       return res.status(400).json({ error: 'Prefix cannot exceed 3 characters' });
+    }
+
+    if (color !== undefined && !DEPARTMENT_PALETTE.includes(color)) {
+      return res.status(400).json({ error: 'Department color must be a palette value' });
     }
 
     // Check for uniqueness
@@ -63,9 +84,18 @@ exports.createDepartment = async (req, res) => {
       return res.status(400).json({ error: 'Department name or prefix already exists' });
     }
 
+    let assignedColor = color;
+    if (assignedColor === undefined) {
+      const existingDepartments = await Department.find().select('color');
+      const usedColors = new Set(existingDepartments.map((item) => item.color).filter(Boolean));
+      assignedColor = DEPARTMENT_PALETTE.find((paletteColor) => !usedColors.has(paletteColor))
+        || DEPARTMENT_PALETTE[existingDepartments.length % DEPARTMENT_PALETTE.length];
+    }
+
     const department = new Department({
       name: cleanName,
-      prefix: cleanPrefix
+      prefix: cleanPrefix,
+      color: assignedColor
     });
 
     try {
@@ -78,7 +108,7 @@ exports.createDepartment = async (req, res) => {
         throw saveErr;
       }
     }
-    res.status(201).json(department);
+    res.status(201).json(serializeDepartment(department));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -90,7 +120,7 @@ exports.createDepartment = async (req, res) => {
 exports.updateDepartment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, prefix } = req.body;
+    const { name, prefix, color } = req.body;
 
     const department = await Department.findById(id);
     if (!department) {
@@ -113,7 +143,6 @@ exports.updateDepartment = async (req, res) => {
         { departmentName: department.name },
         { departmentName: cleanName }
       );
-
       department.name = cleanName;
     }
 
@@ -135,8 +164,15 @@ exports.updateDepartment = async (req, res) => {
       department.prefix = cleanPrefix;
     }
 
+    if (color !== undefined) {
+      if (!DEPARTMENT_PALETTE.includes(color)) {
+        return res.status(400).json({ error: 'Department color must be a palette value' });
+      }
+      department.color = color;
+    }
+
     await department.save();
-    res.json(department);
+    res.json(serializeDepartment(department));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -151,7 +187,10 @@ exports.deleteDepartment = async (req, res) => {
     if (!department) {
       return res.status(404).json({ error: 'Department not found' });
     }
-    res.status(200).json({ message: 'Department deleted successfully', department });
+    res.status(200).json({
+      message: 'Department deleted successfully',
+      department: serializeDepartment(department),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -313,4 +352,3 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
