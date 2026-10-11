@@ -12,16 +12,13 @@ import { getDepartmentAccounts } from '../api/auth';
 import { refreshDepartmentColors } from '../hooks/useDepartmentColors';
 import TicketDrawer from '../components/TicketDrawer';
 import ConsoleHeader from '../components/console/ConsoleHeader';
+import QueueList from '../components/console/QueueList';
 import RoutingPanel from '../components/routing/RoutingPanel';
 import { io } from 'socket.io-client';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ||
   (import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin);
 import {
-  Search,
-  Filter,
-  SlidersHorizontal,
-  Eye,
   X,
   Plus,
   Trash2,
@@ -52,9 +49,9 @@ export default function AdminQueue({ user }) {
   // Drawer state
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
 
   // Controls
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [campusFilter, setCampusFilter] = useState('All');
@@ -288,51 +285,6 @@ export default function AdminQueue({ user }) {
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Pending':
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-500/10 text-pending border border-amber-500/30">
-            Pending
-          </span>
-        );
-      case 'In Progress':
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-sky-500/10 text-inProgress border border-sky-500/30">
-            In Progress
-          </span>
-        );
-      case 'Resolved':
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-500/10 text-resolved border border-emerald-500/30">
-            Resolved
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-700/50 text-muted">
-            {status}
-          </span>
-        );
-    }
-  };
-
-  // Constraint 6: Priority Color Mapping
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'Critical':
-        return 'bg-red-500';
-      case 'High':
-        return 'bg-orange-500';
-      case 'Medium':
-        return 'bg-yellow-500';
-      case 'Low':
-        return 'bg-slate-400';
-      default:
-        return 'bg-slate-700';
-    }
-  };
-
   // Constraint 2 & 5: Toggle Sorting Handler
   const handleSort = (key) => {
     setSortConfig((prev) => ({
@@ -430,261 +382,30 @@ export default function AdminQueue({ user }) {
       {/* SECTION 1: QUEUE TAB */}
       {/* ========================================================= */}
       {activeTab === 'queue' && (
-        <>
-          {/* Controls: Expandable Search Icon & Filter Icon Dropdown */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm flex items-center justify-between transition-colors duration-200">
-            <div className="text-sm font-bold text-slate-900 dark:text-white">Queue</div>
-
-            <div className="flex items-center space-x-2">
-              {/* Expandable Search Control */}
-              <div className="relative flex items-center">
-                {searchOpen ? (
-                  <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-primary rounded-lg px-2.5 py-1.5 transition-all animate-in fade-in">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search ID"
-                      className="bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none w-32 sm:w-44"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setSearchOpen(false);
-                      }}
-                      aria-label="Clear"
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-1"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setSearchOpen(true)}
-                    aria-label="Search"
-                    className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-                  >
-                    <Search className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Filter Dropdown Menu */}
-              <div className="relative" ref={filterRef}>
-                <button
-                  type="button"
-                  onClick={() => setFilterOpen((prev) => !prev)}
-                  aria-label="Filter"
-                  className={`p-2 rounded-lg transition-colors ${
-                    filterOpen || campusFilter !== 'All' || statusFilter !== 'All' || categoryFilter !== 'All'
-                      ? 'text-primary bg-amber-500/10'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <Filter className="w-5 h-5" />
-                </button>
-
-                {filterOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-4 z-50 space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                        Campus
-                      </label>
-                      <select
-                        value={campusFilter}
-                        onChange={(e) => setCampusFilter(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
-                      >
-                        <option value="All">All</option>
-                        <option value="Arlegui">Arlegui</option>
-                        <option value="Casal">Casal</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                        Status
-                      </label>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
-                      >
-                        <option value="All">All</option>
-                        <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                        Category
-                      </label>
-                      <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
-                      >
-                        <option value="All">All</option>
-                        {user?.role === 'department' || user?.role?.toLowerCase() === 'department'
-                          ? (user?.categories || user?.assignedCategories || []).map((c) => {
-                              const catName = typeof c === 'string' ? c : (c.issueName || c.name || c);
-                              const key = (typeof c === 'object' && c._id) ? c._id : catName;
-                              return (
-                                <option key={key} value={catName}>
-                                  {catName}
-                                </option>
-                              );
-                            })
-                          : categories.map((c) => {
-                              const catName = typeof c === 'string' ? c : (c.issueName || c.name || c);
-                              const key = (typeof c === 'object' && c._id) ? c._id : catName;
-                              return (
-                                <option key={key} value={catName}>
-                                  {catName}
-                                </option>
-                              );
-                            })}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Ticket Queue Table */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm transition-colors duration-200">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold select-none">
-                  <tr>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('ticketId')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>ID</span>
-                        {renderSortIndicator('ticketId')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('category')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>Category</span>
-                        {renderSortIndicator('category')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('department')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>Department</span>
-                        {renderSortIndicator('department')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <span>Location</span>
-                    </th>
-                    <th className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSort('status')}
-                        className="flex items-center space-x-1 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors group focus:outline-none"
-                      >
-                        <span>Status</span>
-                        {renderSortIndicator('status')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3.5 text-right">
-                      <span>Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
-                  {loading ? (
-                    <tr>
-                      <td colSpan="6" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
-                        Loading tickets...
-                      </td>
-                    </tr>
-                  ) : sortedTickets.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
-                        No tickets match the selected criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    sortedTickets.map((ticket) => (
-                      <tr key={ticket._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="px-4 py-3.5 font-mono text-xs font-semibold text-primary whitespace-nowrap">
-                          <div className="flex items-center">
-                            <span
-                              className={`w-3 h-3 rounded-full inline-block mr-2 flex-shrink-0 ${getPriorityColor(ticket.priority)}`}
-                              title={`Priority: ${ticket.priority || 'Unassigned'}`}
-                            />
-                            <span>{ticket.ticketId || <span className="text-gray-400 italic">No ID</span>}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5 font-medium text-slate-900 dark:text-white">
-                          {ticket.issueCategory || ticket.category || (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs">
-                          {ticket.assignedDepartment ? (
-                            ticket.assignedDepartment
-                          ) : (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs">
-                          {ticket.campus ? (
-                            <span>
-                              {ticket.campus}
-                              {ticket.locationInfo?.building ? ` - ${ticket.locationInfo.building}` : ''}
-                              {(ticket.locationInfo?.floor !== undefined || ticket.locationInfo?.room) ? (
-                                ` (Flr ${ticket.locationInfo?.floor ?? '?'}, Rm ${ticket.locationInfo?.room ?? '?'})`
-                              ) : ''}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5">
-                          {getStatusBadge(ticket.status)}
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedTicket(ticket);
-                              setDrawerOpen(true);
-                            }}
-                            aria-label="Manage"
-                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-                          >
-                            <SlidersHorizontal className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
+        <QueueList
+          tickets={sortedTickets}
+          loading={loading}
+          metrics={metrics}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          filterOpen={filterOpen}
+          setFilterOpen={setFilterOpen}
+          campusFilter={campusFilter}
+          setCampusFilter={setCampusFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          categoryFilter={categoryFilter}
+          setCategoryFilter={setCategoryFilter}
+          categories={categories}
+          user={user}
+          handleSort={handleSort}
+          renderSortIndicator={renderSortIndicator}
+          selectedTicketId={selectedTicketId}
+          setSelectedTicketId={setSelectedTicketId}
+          setSelectedTicket={setSelectedTicket}
+          setDrawerOpen={setDrawerOpen}
+          filterRef={filterRef}
+        />
       )}
 
       {/* ========================================================= */}
