@@ -7,6 +7,8 @@ const {
   findDepartmentAccounts,
   syncAccounts,
 } = require('../utils/departmentAccountSync');
+const normalizeHex = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
+
 const DEPARTMENT_PALETTE = [
   '#8B5CF6',
   '#EC4899',
@@ -18,6 +20,32 @@ const DEPARTMENT_PALETTE = [
   '#84CC16',
   '#06B6D4',
   '#94A3B8',
+  '#7C3AED',
+  '#A855F7',
+  '#C084FC',
+  '#9333EA',
+  '#C026D3',
+  '#E879F9',
+  '#F472B6',
+  '#FB7185',
+  '#F43F5E',
+  '#E11D48',
+  '#BE123C',
+  '#DC2626',
+  '#B91C1C',
+  '#991B1B',
+  '#7C2D12',
+  '#B45309',
+  '#C2410C',
+  '#D97706',
+  '#EA580C',
+  '#FDBA74',
+  '#4F46E5',
+  '#4338CA',
+  '#312E81',
+  '#475569',
+  '#64748B',
+  '#0F766E',
 ];
 
 const serializeDepartment = (department) => {
@@ -74,8 +102,22 @@ exports.createDepartment = async (req, res) => {
       return res.status(400).json({ error: 'Prefix cannot exceed 3 characters' });
     }
 
-    if (color !== undefined && !DEPARTMENT_PALETTE.includes(color)) {
-      return res.status(400).json({ error: 'Department color must be a palette value' });
+    if (color !== undefined && color !== null) {
+      const normalizedColor = normalizeHex(color);
+      if (!DEPARTMENT_PALETTE.some((paletteColor) => normalizeHex(paletteColor) === normalizedColor)) {
+        return res.status(400).json({ error: 'Department color must be a palette value' });
+      }
+
+      const existingDepartments = await Department.find().select('color');
+      const usedColors = new Set(
+        existingDepartments
+          .map((item) => normalizeHex(item.color))
+          .filter(Boolean)
+      );
+
+      if (usedColors.has(normalizedColor)) {
+        return res.status(409).json({ error: 'Color already in use' });
+      }
     }
 
     // Check for uniqueness
@@ -91,11 +133,26 @@ exports.createDepartment = async (req, res) => {
     }
 
     let assignedColor = color;
-    if (assignedColor === undefined) {
+    if (assignedColor === undefined || assignedColor === null || assignedColor === '') {
       const existingDepartments = await Department.find().select('color');
-      const usedColors = new Set(existingDepartments.map((item) => item.color).filter(Boolean));
-      assignedColor = DEPARTMENT_PALETTE.find((paletteColor) => !usedColors.has(paletteColor))
-        || DEPARTMENT_PALETTE[existingDepartments.length % DEPARTMENT_PALETTE.length];
+      const usedColors = new Set(
+        existingDepartments
+          .map((item) => normalizeHex(item.color))
+          .filter(Boolean)
+      );
+      const freeColor = DEPARTMENT_PALETTE.find(
+        (paletteColor) => !usedColors.has(normalizeHex(paletteColor))
+      );
+
+      if (!freeColor) {
+        return res.status(409).json({ error: 'All department colors are in use' });
+      }
+
+      assignedColor = freeColor;
+    } else {
+      assignedColor = DEPARTMENT_PALETTE.find(
+        (paletteColor) => normalizeHex(paletteColor) === normalizeHex(color)
+      ) || color;
     }
 
     const department = new Department({
@@ -126,7 +183,7 @@ exports.createDepartment = async (req, res) => {
 exports.updateDepartment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, prefix, color } = req.body;
+    const { name, prefix } = req.body;
 
     const department = await Department.findById(id);
     if (!department) {
@@ -170,13 +227,7 @@ exports.updateDepartment = async (req, res) => {
       department.prefix = cleanPrefix;
     }
 
-    if (color !== undefined) {
-      if (!DEPARTMENT_PALETTE.includes(color)) {
-        return res.status(400).json({ error: 'Department color must be a palette value' });
-      }
-      department.color = color;
-    }
-
+    // Color is intentionally ignored on update. Department colors are managed only on creation.
     await department.save();
     res.json(serializeDepartment(department));
   } catch (error) {
