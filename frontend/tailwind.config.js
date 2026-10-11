@@ -7,6 +7,9 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      screens: {
+        '3xl': '1920px',
+      },
       colors: {
         midnight: '#0F172A',
         mist: '#F8FAFC',

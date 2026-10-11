@@ -133,7 +133,7 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
       <Navbar isLanding={true} />
 
       {/* Main Section - Constraint 1: Perfectly Vertically Centered on Y-Axis */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex items-center justify-center">
+      <main className="flex-1 w-full max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center my-auto">
           {/* Left Column: Hero Text + Constraint 2: Prominent Guest CTA Button */}
           <div className="relative flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
@@ -156,7 +156,7 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
               </svg>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight max-w-lg font-display flex items-baseline justify-center lg:justify-start">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl 2xl:text-7xl 3xl:text-8xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight max-w-lg font-display flex items-baseline justify-center lg:justify-start">
               <span
                 className={`inline-block transition-colors duration-150 ${
                   words[currentWordIndex] === 'TIP'
@@ -173,7 +173,7 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
               <span className="text-slate-900 dark:text-white">{" it."}</span>
             </h1>
 
-            <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-md leading-relaxed">
+            <p className="text-base sm:text-lg 2xl:text-xl 3xl:text-2xl text-slate-600 dark:text-slate-400 max-w-md leading-relaxed">
               Report campus facilities and service issues instantly.
             </p>
 
@@ -184,9 +184,9 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
                 onClick={() => setIsMenuOpen((prev) => !prev)}
                 aria-label="Submit Tip"
                 aria-expanded={isMenuOpen}
-                className="p-4 sm:px-6 sm:py-3 rounded-full bg-primary hover:bg-amber-500 text-slate-900 font-bold text-sm shadow-lg hover:scale-105 transition-all duration-300 flex items-center justify-center cursor-pointer active:scale-95"
+                className="p-4 sm:px-6 sm:py-3 2xl:px-8 2xl:py-4 3xl:px-10 3xl:py-5 rounded-full bg-primary hover:bg-amber-500 text-slate-900 font-bold text-sm 2xl:text-base 3xl:text-lg shadow-lg hover:scale-105 transition-all duration-300 flex items-center justify-center cursor-pointer active:scale-95"
               >
-                <Camera className="w-7 h-7 sm:w-5 sm:h-5" />
+                <Camera className="w-7 h-7 sm:w-5 sm:h-5 2xl:w-6 2xl:h-6 3xl:w-7 3xl:h-7" />
                 <span className="hidden sm:inline ml-2">Submit Tip</span>
               </button>
 
@@ -228,7 +228,7 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
 
           {/* Right Column: Embedded Flip-Card with Unified Login & Register */}
           <div className="w-full flex justify-center lg:justify-end">
-            <div className="w-full max-w-md perspective-1000">
+            <div className="w-full max-w-md 2xl:max-w-lg 3xl:max-w-xl perspective-1000">
               <div
                 style={{
                   transform: `rotateY(${flipDegree}deg)`,

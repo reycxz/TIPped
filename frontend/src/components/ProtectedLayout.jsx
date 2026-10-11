@@ -17,7 +17,7 @@ export default function ProtectedLayout({ user, onLogout, allowedRoles }) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
       <Navbar user={user} userRole={user.role} onLogout={onLogout} />
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 w-full max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Outlet />
       </main>
     </div>

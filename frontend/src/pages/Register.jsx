@@ -139,7 +139,7 @@ export default function Register({
   };
 
   const cardContent = (
-    <div className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 shadow-xl transition-colors duration-200">
+    <div className="w-full max-w-md 2xl:max-w-lg 3xl:max-w-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 2xl:p-10 3xl:p-12 shadow-xl transition-colors duration-200">
       {/* Tabs: User Only */}
       <div className="flex border-b border-slate-200 dark:border-slate-700 mb-6">
         <button
@@ -176,7 +176,7 @@ export default function Register({
               value={formData.firstName}
               onChange={handleChange}
               placeholder="First Name"
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              className="w-full px-3 py-2 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
             />
           </div>
           <div>
@@ -190,7 +190,7 @@ export default function Register({
               value={formData.lastName}
               onChange={handleChange}
               placeholder="Last Name"
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              className="w-full px-3 py-2 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
             />
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function Register({
             value={formData.email}
             onChange={handleChange}
             placeholder="Email"
-            className={`w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border ${
+            className={`w-full px-3 py-2 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border ${
               emailError ? 'border-red-500 focus:border-red-500' : 'border-slate-300 dark:border-slate-700 focus:border-primary'
             } rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors`}
           />
@@ -226,7 +226,7 @@ export default function Register({
             name="program"
             value={formData.program}
             onChange={handleChange}
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors cursor-pointer"
+            className="w-full px-3 py-2 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors cursor-pointer"
           >
             <option value="" disabled>
               Select your program
@@ -270,7 +270,7 @@ export default function Register({
               value={formData.password}
               onChange={handleChange}
               placeholder="Password"
-              className="w-full px-3 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              className="w-full px-3 pr-10 py-2 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
             />
             <button
               type="button"
@@ -300,7 +300,7 @@ export default function Register({
               value={formData.confirmPassword}
               onChange={handleChange}
               placeholder="Confirm Password"
-              className="w-full px-3 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              className="w-full px-3 pr-10 py-2 2xl:py-3 3xl:py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
             />
             <button
               type="button"
@@ -320,7 +320,7 @@ export default function Register({
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors mt-2 cursor-pointer"
+          className="w-full py-2.5 2xl:py-3 3xl:py-3.5 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm 2xl:text-base transition-colors mt-2 cursor-pointer"
         >
           {loading ? 'Submitting...' : 'Sign Up'}
         </button>
