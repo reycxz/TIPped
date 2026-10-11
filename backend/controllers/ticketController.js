@@ -485,8 +485,7 @@ exports.updateTicket = async (req, res) => {
       const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
-      if (!userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+      if (!userCats.includes(ticket.issueCategory)) {
         return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
       }
     }
@@ -647,13 +646,10 @@ exports.getAnalytics = async (req, res) => {
       const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      if (assigned.length > 0) {
-        match.$or = [
-          { issueCategory: { $in: assigned } },
-          { category: { $in: assigned } },
-          { assignedDepartment: { $in: assigned } }
-        ];
-      }
+      match.$or = [
+        { issueCategory: { $in: assigned } },
+        { category: { $in: assigned } }
+      ];
     }
 
     // Constraint 1: Fetch real account counts directly from User collection
@@ -817,8 +813,7 @@ exports.archiveReport = async (req, res) => {
       const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
-      if (userCats.length > 0 && !userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+      if (!userCats.includes(ticket.issueCategory)) {
         return res.status(403).json({ error: 'Forbidden: Cannot archive reports outside your assigned department' });
       }
     }
@@ -869,8 +864,7 @@ exports.restoreReport = async (req, res) => {
       const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
-      if (userCats.length > 0 && !userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+      if (!userCats.includes(ticket.issueCategory)) {
         return res.status(403).json({ error: 'Forbidden: Cannot restore reports outside your assigned department' });
       }
     }
@@ -917,9 +911,7 @@ exports.getArchivedReports = async (req, res) => {
       const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      if (assigned.length > 0) {
-        query.issueCategory = { $in: assigned };
-      }
+      query.issueCategory = { $in: assigned };
     }
 
     if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim()) {
@@ -966,8 +958,7 @@ exports.deleteReportForever = async (req, res) => {
       const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
         ? req.user.assignedCategories
         : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      const ticketCategory = ticket.issueCategory || ticket.assignedDepartment || ticket.category;
-      if (userCats.length > 0 && !userCats.includes(ticketCategory) && !userCats.includes(ticket.assignedDepartment) && !userCats.includes(ticket.issueCategory)) {
+      if (!userCats.includes(ticket.issueCategory)) {
         return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
       }
     }
