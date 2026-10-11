@@ -77,9 +77,9 @@ export default function QueueList({
   setCampusFilter,
   statusFilter,
   setStatusFilter,
-  categoryFilter,
-  setCategoryFilter,
-  categories,
+  departmentFilter,
+  setDepartmentFilter,
+  departmentOptions,
   user,
   handleSort,
   renderSortIndicator,
@@ -141,6 +141,10 @@ export default function QueueList({
       cardRef.current.scrollIntoView({ block: 'nearest' });
     }
   }, [page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [departmentFilter]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)');
@@ -311,7 +315,7 @@ export default function QueueList({
               aria-label="Filters"
               aria-expanded={filterOpen}
               className={`inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                filterOpen || campusFilter !== 'All' || statusFilter !== 'All' || categoryFilter !== 'All'
+                filterOpen || campusFilter !== 'All' || statusFilter !== 'All' || departmentFilter !== 'All'
                   ? 'bg-amber-500/10 text-primary'
                   : 'text-slate-500 hover:bg-slate-100 hover:text-primary dark:text-slate-400 dark:hover:bg-slate-700'
               }`}
@@ -360,44 +364,22 @@ export default function QueueList({
 
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Category
+                    Department
                   </label>
                   <select
-                    value={categoryFilter}
+                    value={departmentFilter}
                     onChange={(event) => {
                       setPage(1);
-                      setCategoryFilter(event.target.value);
+                      setDepartmentFilter(event.target.value);
                     }}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="All">All</option>
-                    {user?.role === 'department' || user?.role?.toLowerCase() === 'department'
-                      ? (user?.categories || user?.assignedCategories || []).map((category) => {
-                          const categoryName = typeof category === 'string'
-                            ? category
-                            : (category.issueName || category.name || category);
-                          const key = (typeof category === 'object' && category._id)
-                            ? category._id
-                            : categoryName;
-                          return (
-                            <option key={key} value={categoryName}>
-                              {categoryName}
-                            </option>
-                          );
-                        })
-                      : categories.map((category) => {
-                          const categoryName = typeof category === 'string'
-                            ? category
-                            : (category.issueName || category.name || category);
-                          const key = (typeof category === 'object' && category._id)
-                            ? category._id
-                            : categoryName;
-                          return (
-                            <option key={key} value={categoryName}>
-                              {categoryName}
-                            </option>
-                          );
-                        })}
+                    {departmentOptions.map((departmentName) => (
+                      <option key={departmentName} value={departmentName}>
+                        {departmentName}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <button

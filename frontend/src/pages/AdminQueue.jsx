@@ -48,7 +48,7 @@ export default function AdminQueue({ user }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [campusFilter, setCampusFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [departmentFilter, setDepartmentFilter] = useState('All');
   const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
 
   // Manage Routing states (Superadmin only) - Constraint 2
@@ -98,7 +98,6 @@ export default function AdminQueue({ user }) {
       setLoading(true);
       const params = {};
       if (campusFilter !== 'All') params.campus = campusFilter;
-      if (categoryFilter !== 'All') params.category = categoryFilter;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
       const data = await getAdminTickets(params);
@@ -120,7 +119,7 @@ export default function AdminQueue({ user }) {
     if (activeTab === 'queue') {
       fetchTicketsData();
     }
-  }, [campusFilter, categoryFilter, searchQuery, activeTab]);
+  }, [campusFilter, searchQuery, activeTab]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -329,7 +328,21 @@ export default function AdminQueue({ user }) {
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
   }, [tickets, sortConfig]);
-  const statusCounts = sortedTickets.reduce((counts, ticket) => {
+  const departmentOptions = useMemo(() => {
+    const names = departments.length > 0
+      ? departments.map((department) => department.name).filter(Boolean)
+      : [...new Set(tickets.map((ticket) => ticket.assignedDepartment).filter(Boolean))];
+    return names.sort((left, right) => left.localeCompare(right));
+  }, [departments, tickets]);
+  useEffect(() => {
+    if (departmentFilter !== 'All' && !departmentOptions.includes(departmentFilter)) {
+      setDepartmentFilter('All');
+    }
+  }, [departmentFilter, departmentOptions]);
+  const departmentFilteredTickets = departmentFilter === 'All'
+    ? sortedTickets
+    : sortedTickets.filter((ticket) => ticket.assignedDepartment === departmentFilter);
+  const statusCounts = departmentFilteredTickets.reduce((counts, ticket) => {
     counts.All += 1;
     if (ticket.status === 'Pending') counts.Pending += 1;
     if (ticket.status === 'In Progress') counts['In Progress'] += 1;
@@ -337,8 +350,8 @@ export default function AdminQueue({ user }) {
     return counts;
   }, { All: 0, Pending: 0, 'In Progress': 0, Resolved: 0 });
   const displayedTickets = statusFilter === 'All'
-    ? sortedTickets
-    : sortedTickets.filter((ticket) => ticket.status === statusFilter);
+    ? departmentFilteredTickets
+    : departmentFilteredTickets.filter((ticket) => ticket.status === statusFilter);
 
   return (
     <div className="space-y-6 pb-20">
@@ -376,9 +389,9 @@ export default function AdminQueue({ user }) {
           setCampusFilter={setCampusFilter}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
-          categoryFilter={categoryFilter}
-          setCategoryFilter={setCategoryFilter}
-          categories={categories}
+          departmentFilter={departmentFilter}
+          setDepartmentFilter={setDepartmentFilter}
+          departmentOptions={departmentOptions}
           user={user}
           handleSort={handleSort}
           renderSortIndicator={renderSortIndicator}
