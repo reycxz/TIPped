@@ -234,17 +234,17 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
   };
 
   const navLinkClass = ({ isActive }) =>
-    `text-sm font-medium transition-colors ${
+    `relative text-sm font-medium transition-colors ${
       isActive
-        ? 'text-amber-500 font-semibold'
+        ? 'text-amber-500 font-semibold underline decoration-2 underline-offset-8 decoration-amber-500 dark:decoration-amber-400'
         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
     }`;
 
   const mobileNavLinks = user?.role === 'user'
     ? [
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/report/new', label: 'Report', icon: FilePlus2 },
-        { to: '/my-reports', label: 'Reports', icon: ClipboardList },
+        { to: '/report/new', label: 'New Report', icon: FilePlus2 },
+        { to: '/my-reports', label: 'My Reports', icon: ClipboardList },
       ]
     : [
         { to: '/admin', label: 'Console', icon: Shield },
@@ -369,7 +369,7 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
                     Dashboard
                   </NavLink>
                   <NavLink to="/report/new" className={navLinkClass}>
-                    Submit Report
+                    New Report
                   </NavLink>
                   <NavLink to="/my-reports" className={navLinkClass}>
                     My Reports
@@ -512,7 +512,7 @@ export default function Navbar({ user: propUser, userRole = 'User', onLogout, is
               className={({ isActive }) =>
                 `flex min-h-12 items-center gap-3 px-5 py-3 text-sm font-medium ${
                   isActive
-                    ? 'text-amber-500'
+                    ? 'border-l-2 border-amber-500 pl-4 text-amber-500 font-semibold dark:border-amber-400 dark:text-amber-400'
                     : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`
               }
