@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getCategories } from '../api/tickets';
-import { getDepartmentAccounts, createDepartmentAccount, updateDepartmentAccount } from '../api/auth';
-import { Plus, Trash2, Edit2, X, AlertCircle, CheckCircle2, Shield, Users, Building } from 'lucide-react';
+import { getDepartmentAccounts } from '../api/auth';
+import DepartmentAccountForm from '../components/DepartmentAccountForm';
+import { Plus, Trash2, Edit2, AlertCircle, CheckCircle2, Shield, Users, Building } from 'lucide-react';
 
 export default function Analytics({ user }) {
   const [timeframe, setTimeframe] = useState('All Time');
@@ -16,17 +17,7 @@ export default function Analytics({ user }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Department Modal state
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingDept, setEditingDept] = useState(null);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    assignedCategories: [],
-    departmentCategory: '',
-  });
+  const [accountForm, setAccountForm] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -81,73 +72,26 @@ export default function Analytics({ user }) {
   }, [user]);
 
   const openCreateModal = () => {
-    setEditingDept(null);
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      password: '',
-      assignedCategories: allCategories.length > 0 ? [allCategories[0]] : [],
-      departmentCategory: allCategories[0] || 'ITSO',
-    });
-    setModalOpen(true);
+    setAccountForm({ mode: 'create' });
     setError('');
     setSuccess('');
   };
 
   const openEditModal = (dept) => {
-    setEditingDept(dept);
-    const existingCats = Array.isArray(dept.assignedCategories) && dept.assignedCategories.length > 0
-      ? dept.assignedCategories
-      : (dept.departmentCategory ? [dept.departmentCategory] : (allCategories.length > 0 ? [allCategories[0]] : []));
-
-    setFormData({
-      firstName: dept.firstName || '',
-      lastName: dept.lastName || '',
-      email: dept.email || '',
-      password: '',
-      assignedCategories: existingCats,
-      departmentCategory: existingCats[0] || allCategories[0] || 'ITSO',
-    });
-    setModalOpen(true);
+    setAccountForm({ mode: 'edit', account: dept });
     setError('');
     setSuccess('');
   };
 
-  const handleSaveDepartment = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (formData.assignedCategories.length === 0) {
-      setError('Please select at least one category');
-      return;
-    }
-
-    try {
-      const payload = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        assignedCategories: formData.assignedCategories,
-        departmentCategory: formData.assignedCategories[0] || '',
-        password: formData.password || undefined,
-      };
-
-      if (editingDept) {
-        await updateDepartmentAccount(editingDept._id, payload);
-        setSuccess('Account updated');
-      } else {
-        await createDepartmentAccount({
-          ...payload,
-          email: formData.email,
-        });
-        setSuccess('Account created');
-      }
-      setModalOpen(false);
-      loadAdminAccounts();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Save failed');
-    }
+  const handleAccountSaved = (action) => {
+    setSuccess(
+      action === 'created'
+        ? 'Account created'
+        : action === 'deleted'
+          ? 'Account deleted'
+          : 'Account updated'
+    );
+    loadAdminAccounts();
   };
 
   const handleDeleteAccount = async (accountId) => {
@@ -464,144 +408,15 @@ export default function Analytics({ user }) {
         </div>
       )}
 
-      {/* Create / Edit Department Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-2xl relative">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              aria-label="Close"
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h2 className="text-base font-bold text-slate-900 dark:text-white mb-4">
-              {editingDept ? 'Edit Account' : 'Create Account'}
-            </h2>
-
-            <form onSubmit={handleSaveDepartment} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    placeholder="First Name"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    placeholder="Last Name"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              {!editingDept && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Email"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              )}
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Categories
-                  </label>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {formData.assignedCategories.length} selected
-                  </span>
-                </div>
-                <div className="w-full max-h-36 overflow-y-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-1.5">
-                  {allCategories.map((cat) => {
-                    const isChecked = formData.assignedCategories.includes(cat);
-                    return (
-                      <label
-                        key={cat}
-                        className={`flex items-center space-x-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors text-xs ${
-                          isChecked ? 'bg-amber-500/10 text-amber-500 font-medium' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          value={cat}
-                          checked={isChecked}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setFormData((prev) => {
-                              const current = prev.assignedCategories || [];
-                              const updated = checked
-                                ? [...current, cat]
-                                : current.filter((c) => c !== cat);
-                              return {
-                                ...prev,
-                                assignedCategories: updated,
-                                departmentCategory: updated[0] || '',
-                              };
-                            });
-                          }}
-                          className="w-3.5 h-3.5 rounded border-slate-400 text-amber-500 focus:ring-0 focus:ring-offset-0 bg-white dark:bg-slate-900"
-                        />
-                        <span>{cat}</span>
-                      </label>
-                    );
-                  })}
-                  {allCategories.length === 0 && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400 text-center py-2">
-                      No categories available
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                  {editingDept ? 'New Password' : 'Password'}
-                </label>
-                <input
-                  type="password"
-                  required={!editingDept}
-                  minLength={6}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Password"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg text-xs transition-colors mt-2"
-              >
-                Save
-              </button>
-            </form>
-          </div>
-        </div>
+      {accountForm && (
+        <DepartmentAccountForm
+          key={`${accountForm.mode}-${accountForm.account?._id || 'create'}`}
+          mode={accountForm.mode}
+          account={accountForm.account}
+          categories={allCategories}
+          onSaved={handleAccountSaved}
+          onClose={() => setAccountForm(null)}
+        />
       )}
     </div>
   );

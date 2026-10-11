@@ -9,6 +9,7 @@ export default function ConsoleHeader({
   activeTab,
   onTabChange,
   ticketCount,
+  routingCount = 0,
   user,
   actionSlot = null,
 }) {
@@ -27,9 +28,9 @@ export default function ConsoleHeader({
         <h1 className="font-display text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white md:text-4xl">
           {activeTab === 'routing' ? 'Routing' : 'Queue'}
         </h1>
-        {activeTab === 'queue' && (
+        {(activeTab === 'queue' || activeTab === 'routing') && (
           <span className="rounded-full border border-slate-300 px-3 py-1 text-[13px] font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400">
-            {ticketCount}
+            {activeTab === 'routing' ? routingCount : ticketCount}
           </span>
         )}
       </div>

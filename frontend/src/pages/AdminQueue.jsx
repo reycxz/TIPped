@@ -5,13 +5,14 @@ import { getMetrics, getAdminTickets, getCategories } from '../api/tickets';
 import {
   getDepartments,
   createDepartment,
-  deleteDepartment,
   getCategories as getAdminCategories,
   createCategory,
-  deleteCategory,
 } from '../api/adminData';
+import { getDepartmentAccounts } from '../api/auth';
+import { refreshDepartmentColors } from '../hooks/useDepartmentColors';
 import TicketDrawer from '../components/TicketDrawer';
 import ConsoleHeader from '../components/console/ConsoleHeader';
+import RoutingPanel from '../components/routing/RoutingPanel';
 import { io } from 'socket.io-client';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ||
@@ -68,16 +69,14 @@ export default function AdminQueue({ user }) {
   const setRoutingDepts = setDepartments;
   const routingCats = categories;
   const setRoutingCats = setCategories;
+  const [routingAccounts, setRoutingAccounts] = useState([]);
   const [routingLoading, setRoutingLoading] = useState(false);
   const [routingError, setRoutingError] = useState('');
   const [routingSuccess, setRoutingSuccess] = useState('');
-
-  // Department form state
+  const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptPrefix, setNewDeptPrefix] = useState('');
   const [addingDept, setAddingDept] = useState(false);
-
-  // Category form state
   const [newCatIssueName, setNewCatIssueName] = useState('');
   const [newCatDeptName, setNewCatDeptName] = useState('');
   const [addingCat, setAddingCat] = useState(false);
@@ -184,15 +183,15 @@ export default function AdminQueue({ user }) {
   const fetchRoutingData = async () => {
     try {
       setRoutingLoading(true);
-      const [depts, cats] = await Promise.all([
+      setRoutingError('');
+      const [depts, cats, accounts] = await Promise.all([
         getDepartments(),
         getAdminCategories(),
+        getDepartmentAccounts(),
       ]);
       setRoutingDepts(Array.isArray(depts) ? depts : []);
       setRoutingCats(Array.isArray(cats) ? cats : []);
-      if (Array.isArray(depts) && depts.length > 0 && !newCatDeptName) {
-        setNewCatDeptName(depts[0].name);
-      }
+      setRoutingAccounts(Array.isArray(accounts) ? accounts : []);
     } catch (err) {
       console.error('Failed to fetch routing data:', err);
       setRoutingError(err.response?.data?.error || 'Failed to load routing data');
@@ -201,41 +200,29 @@ export default function AdminQueue({ user }) {
     }
   };
 
+  const reloadRoutingData = async () => {
+    await fetchRoutingData();
+    await refreshDepartmentColors();
+  };
+
   useEffect(() => {
     if (user?.role?.toLowerCase() === 'superadmin' && activeTab === 'routing') {
       fetchRoutingData();
     }
   }, [user, activeTab]);
 
-  // Manage Routing: Add Department
-  const handleAddDepartment = async (e) => {
-    e.preventDefault();
-    setRoutingError('');
-    setRoutingSuccess('');
-
-    if (!newDeptName.trim() || !newDeptPrefix.trim()) {
-      setRoutingError('Department name and prefix are required.');
-      return;
+  const handleAddDepartment = async ({ name, prefix, color }) => {
+    if (!name.trim() || !prefix.trim()) {
+      throw new Error('Department name and prefix are required.');
     }
-
-    const cleanPrefix = newDeptPrefix.trim().toUpperCase();
+    const cleanPrefix = prefix.trim().toUpperCase();
     if (cleanPrefix.length > 3) {
-      setRoutingError('Prefix must be at most 3 characters.');
-      return;
+      throw new Error('Prefix must be at most 3 characters.');
     }
-
+    setAddingDept(true);
     try {
-      setAddingDept(true);
-      await createDepartment({
-        name: newDeptName.trim(),
-        prefix: cleanPrefix,
-      });
-      setNewDeptName('');
-      setNewDeptPrefix('');
-      setRoutingSuccess(`Department "${newDeptName.trim()}" created successfully.`);
-      fetchRoutingData();
-    } catch (err) {
-      setRoutingError(err.response?.data?.error || 'Failed to create department');
+      await createDepartment({ name: name.trim(), prefix: cleanPrefix, color });
+      await reloadRoutingData();
     } finally {
       setAddingDept(false);
     }
@@ -263,28 +250,17 @@ export default function AdminQueue({ user }) {
     }
   };
 
-  // Manage Routing: Add Category
-  const handleAddCategory = async (e) => {
-    e.preventDefault();
-    setRoutingError('');
-    setRoutingSuccess('');
-
-    if (!newCatIssueName.trim() || !newCatDeptName.trim()) {
-      setRoutingError('Issue name and assigned department are required.');
-      return;
+  const handleAddCategory = async ({ issueName, departmentName }) => {
+    if (!issueName.trim() || !departmentName.trim()) {
+      throw new Error('Issue name and assigned department are required.');
     }
-
+    setAddingCat(true);
     try {
-      setAddingCat(true);
       await createCategory({
-        issueName: newCatIssueName.trim(),
-        departmentName: newCatDeptName.trim(),
+        issueName: issueName.trim(),
+        departmentName: departmentName.trim(),
       });
-      setNewCatIssueName('');
-      setRoutingSuccess(`Category "${newCatIssueName.trim()}" created successfully.`);
-      fetchRoutingData();
-    } catch (err) {
-      setRoutingError(err.response?.data?.error || 'Failed to create category');
+      await reloadRoutingData();
     } finally {
       setAddingCat(false);
     }
@@ -436,7 +412,18 @@ export default function AdminQueue({ user }) {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         ticketCount={tickets.length}
+        routingCount={departments.length}
         user={user}
+        actionSlot={activeTab === 'routing' ? (
+          <button
+            type="button"
+            onClick={() => setDepartmentModalOpen(true)}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Department
+          </button>
+        ) : null}
       />
 
       {/* ========================================================= */}
@@ -704,6 +691,21 @@ export default function AdminQueue({ user }) {
       {/* SECTION 2: MANAGE ROUTING TAB (Superadmin Only) */}
       {/* ========================================================= */}
       {activeTab === 'routing' && user?.role?.toLowerCase() === 'superadmin' && (
+        <RoutingPanel
+          departments={departments}
+          categories={categories}
+          accounts={routingAccounts}
+          loading={routingLoading}
+          loadError={routingError}
+          onDismissLoadError={() => setRoutingError('')}
+          departmentModalOpen={departmentModalOpen}
+          onDepartmentModalClose={() => setDepartmentModalOpen(false)}
+          onAddDepartment={handleAddDepartment}
+          onAddCategory={handleAddCategory}
+          onReload={reloadRoutingData}
+        />
+      )}
+      {activeTab === 'routing-legacy' && user?.role?.toLowerCase() === 'superadmin' && (
         <div className="space-y-6">
           {/* Notifications */}
           {routingError && (

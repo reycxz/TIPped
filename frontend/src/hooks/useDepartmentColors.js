@@ -4,6 +4,8 @@ import { DEPARTMENT_COLOR_FALLBACK } from '../constants/departmentPalette';
 
 let cachedDepartmentColors = null;
 let departmentColorsRequest = null;
+let departmentColorsVersion = 0;
+const departmentColorsListeners = new Set();
 
 const emptyDepartmentColors = { departments: [], categories: [] };
 
@@ -46,17 +48,24 @@ const loadDepartmentColors = () => {
   if (cachedDepartmentColors) return Promise.resolve(cachedDepartmentColors);
 
   if (!departmentColorsRequest) {
+    const requestVersion = departmentColorsVersion;
     departmentColorsRequest = fetchDepartmentColors()
       .then((data) => {
-        cachedDepartmentColors = {
+        const loadedColors = {
           departments: Array.isArray(data?.departments) ? data.departments : [],
           categories: Array.isArray(data?.categories) ? data.categories : [],
         };
-        return cachedDepartmentColors;
+        if (requestVersion === departmentColorsVersion) {
+          cachedDepartmentColors = loadedColors;
+          departmentColorsRequest = null;
+        }
+        return loadedColors;
       })
       .catch((error) => {
         console.error('Failed to load department colors:', error);
-        departmentColorsRequest = null;
+        if (requestVersion === departmentColorsVersion) {
+          departmentColorsRequest = null;
+        }
         return emptyDepartmentColors;
       });
   }
@@ -86,16 +95,36 @@ export function getTicketColor(ticket) {
   return findTicketColor(ticket, cachedDepartmentColors);
 }
 
+export async function refreshDepartmentColors() {
+  departmentColorsVersion += 1;
+  cachedDepartmentColors = null;
+  departmentColorsRequest = null;
+  const requestVersion = departmentColorsVersion;
+  const data = await loadDepartmentColors();
+  if (requestVersion === departmentColorsVersion) {
+    departmentColorsListeners.forEach((listener) => listener(data));
+  }
+  return data;
+}
+
 export default function useDepartmentColors() {
   const [colors, setColors] = useState(cachedDepartmentColors);
 
   useEffect(() => {
     let active = true;
-    loadDepartmentColors().then((data) => {
+    const requestVersion = departmentColorsVersion;
+    const updateColors = (data) => {
       if (active) setColors(data);
+    };
+    departmentColorsListeners.add(updateColors);
+    loadDepartmentColors().then((data) => {
+      if (active && requestVersion === departmentColorsVersion) {
+        updateColors(data);
+      }
     });
     return () => {
       active = false;
+      departmentColorsListeners.delete(updateColors);
     };
   }, []);
 
