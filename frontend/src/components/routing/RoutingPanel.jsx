@@ -155,9 +155,10 @@ function DepartmentModal({ departments, onClose, onSubmit }) {
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
+          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
         >
           <X className="h-5 w-5" aria-hidden="true" />
+          Close
         </button>
       </div>
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
@@ -198,11 +199,12 @@ function DepartmentModal({ departments, onClose, onSubmit }) {
                   title={usedBy ? `In use by ${usedBy.name}` : undefined}
                   aria-pressed={color === paletteColor}
                   onClick={() => setColor(paletteColor)}
-                  className={`relative inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
+                  className={`relative inline-flex min-h-11 min-w-20 flex-col items-center justify-center gap-1 rounded-lg border px-2 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
                     color === paletteColor ? 'border-2 border-slate-900 dark:border-white' : 'border border-slate-300 dark:border-slate-600'
                   }`}
                 >
-                  <span className="h-6 w-6 rounded-full" style={{ backgroundColor: paletteColor }} aria-hidden="true" />
+                  <span className="h-4 w-4 rounded-full" style={{ backgroundColor: paletteColor }} aria-hidden="true" />
+                  <span>{paletteColor}</span>
                   {usedBy && (
                     <Check className="absolute right-1 top-1 h-3 w-3 text-slate-900 dark:text-white" aria-hidden="true" />
                   )}
@@ -266,9 +268,10 @@ function CategoryModal({ department, onClose, onSubmit }) {
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
+          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
         >
           <X className="h-5 w-5" aria-hidden="true" />
+          Close
         </button>
       </div>
       <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
@@ -331,9 +334,28 @@ function DeleteDialog({ item, error, counts, saving, onClose, onConfirm }) {
                   <div className="flex justify-between gap-3"><dt>Accounts</dt><dd>{counts.accounts ?? 0}</dd></div>
                 </>
               ) : (
-                <div className="flex justify-between gap-3"><dt>Accounts</dt><dd>{counts.accounts ?? 0}</dd></div>
+                <>
+                  {counts.accounts !== undefined && (
+                    <div className="flex justify-between gap-3"><dt>Accounts</dt><dd>{counts.accounts ?? 0}</dd></div>
+                  )}
+                  {counts.tickets !== undefined && (
+                    <div className="flex justify-between gap-3"><dt>Tickets</dt><dd>{counts.tickets ?? 0}</dd></div>
+                  )}
+                </>
               )}
             </dl>
+          )}
+          {counts && isDepartment && counts.accounts > 0 && (
+            <p>Delete the account first (pencil, then Delete Account).</p>
+          )}
+          {counts && isDepartment && counts.categories > 0 && (
+            <p>Then remove each category with its X.</p>
+          )}
+          {counts && !isDepartment && counts.accounts > 0 && (
+            <p>A department with an account must keep at least one category. Delete the account first.</p>
+          )}
+          {counts && !isDepartment && counts.tickets > 0 && (
+            <p>Categories with tickets cannot be deleted.</p>
           )}
         </div>
       )}
@@ -423,18 +445,11 @@ export default function RoutingPanel({
   };
 
   const openAccountForm = (mode, account, department, departmentCategories) => {
-    const ownCategoryNames = departmentCategories.map((category) => category.issueName);
-    const assignedOtherCategories = mode === 'edit'
-      ? (Array.isArray(account?.assignedCategories) ? account.assignedCategories : []).filter((categoryName) => (
-        !ownCategoryNames.includes(categoryName)
-      ))
-      : [];
     setAccountForm({
       mode,
       account,
-      categories: [...ownCategoryNames, ...assignedOtherCategories],
-      categoryDetails: categories,
-      lockedDepartmentName: department.name,
+      categories: departmentCategories.map((category) => category.issueName),
+      departmentName: department.name,
     });
   };
 
@@ -501,12 +516,12 @@ export default function RoutingPanel({
                   key={department._id}
                   className="flex min-w-0 flex-col gap-[18px] rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800"
                 >
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex min-w-0 flex-wrap items-center gap-3">
                     <AccessiblePopover
                       label="Change color"
-                      triggerClassName="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      triggerContent={<span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />}
-                      panelClassName="grid grid-cols-5 gap-1.5"
+                      triggerClassName="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-slate-300 px-3 text-sm dark:border-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      triggerContent={<><span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />Color</>}
+                      panelClassName="grid grid-cols-2 gap-1.5"
                     >
                       {DEPARTMENT_PALETTE.map((paletteColor) => {
                         const usedBy = normalize(paletteColor) === normalize(department.color)
@@ -525,11 +540,12 @@ export default function RoutingPanel({
                             onClick={async () => {
                               await handleColorChange(department, paletteColor);
                             }}
-                            className={`relative inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            className={`relative inline-flex min-h-11 min-w-20 flex-col items-center justify-center gap-1 rounded-lg border px-2 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                               color === paletteColor ? 'border-2 border-slate-900 dark:border-white' : 'border border-transparent'
                             }`}
                           >
-                            <span className="h-5 w-5 rounded-full" style={{ backgroundColor: paletteColor }} aria-hidden="true" />
+                            <span className="h-4 w-4 rounded-full" style={{ backgroundColor: paletteColor }} aria-hidden="true" />
+                            <span>{paletteColor}</span>
                             {usedBy && (
                               <Check className="absolute right-1 top-1 h-3 w-3 text-slate-900 dark:text-white" aria-hidden="true" />
                             )}
@@ -548,7 +564,7 @@ export default function RoutingPanel({
                       label="Department options"
                       triggerTitle="Department options"
                       panelRole="menu"
-                      triggerClassName="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
+                      triggerClassName="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl px-2 text-sm text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
                       triggerContent={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
                     >
                       <button
@@ -609,9 +625,10 @@ export default function RoutingPanel({
                             type="button"
                             aria-label="Edit account"
                             onClick={() => openAccountForm('edit', account, department, departmentCategories)}
-                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
+                            className="inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
                           >
                             <Pencil className="h-4 w-4" aria-hidden="true" />
+                            Edit
                           </button>
                         </div>
                       ))}
@@ -655,12 +672,11 @@ export default function RoutingPanel({
       )}
       {accountForm && (
         <DepartmentAccountForm
-          key={`${accountForm.mode}-${accountForm.account?._id || accountForm.lockedDepartmentName}`}
+          key={`${accountForm.mode}-${accountForm.account?._id || accountForm.departmentName}`}
           mode={accountForm.mode}
           account={accountForm.account}
           categories={accountForm.categories}
-          categoryDetails={accountForm.categoryDetails}
-          lockedDepartmentName={accountForm.lockedDepartmentName}
+          departmentName={accountForm.departmentName}
           onSaved={handleAccountSaved}
           onClose={() => setAccountForm(null)}
         />
