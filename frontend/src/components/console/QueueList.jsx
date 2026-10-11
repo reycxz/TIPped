@@ -68,7 +68,7 @@ function SortHeader({ label, sortKey, handleSort, renderSortIndicator }) {
 export default function QueueList({
   tickets,
   loading,
-  metrics,
+  statusCounts,
   searchQuery,
   setSearchQuery,
   filterOpen,
@@ -127,12 +127,6 @@ export default function QueueList({
     ? 'grid-cols-[minmax(5.5rem,0.7fr)_minmax(9rem,1.6fr)_minmax(9rem,1.8fr)_7.5rem_2.75rem]'
     : 'grid-cols-[minmax(5.5rem,0.7fr)_minmax(8rem,1.5fr)_minmax(8rem,1.2fr)_minmax(8rem,1.5fr)_7.5rem_2.75rem]';
   const desktopMinWidth = isDepartmentAccount ? 'min-w-[600px]' : 'min-w-[720px]';
-  const metricCounts = {
-    All: metrics.pending + metrics.inProgress + metrics.resolved,
-    Pending: metrics.pending,
-    'In Progress': metrics.inProgress,
-    Resolved: metrics.resolved,
-  };
   const statusChips = [
     { value: 'All', label: 'All' },
     { value: 'Pending', label: 'Pending', dotClass: 'bg-amber-500' },
@@ -271,7 +265,7 @@ export default function QueueList({
                 {chip.dotClass && <span className={`h-2.5 w-2.5 rounded-full ${chip.dotClass}`} aria-hidden="true" />}
                 <span>{chip.label}</span>
                 <span className={`font-normal ${isActive ? 'text-slate-700' : 'text-slate-400 dark:text-slate-500'}`}>
-                  {metricCounts[chip.value]}
+                  {statusCounts[chip.value]}
                 </span>
               </button>
             );

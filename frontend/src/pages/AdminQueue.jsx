@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
-import { getMetrics, getAdminTickets, getCategories } from '../api/tickets';
+import { getAdminTickets, getCategories } from '../api/tickets';
 import {
   getDepartments,
   createDepartment,
@@ -33,13 +33,6 @@ import {
 export default function AdminQueue({ user }) {
   // Navigation tab state for Superadmin
   const [activeTab, setActiveTab] = useState('queue');
-
-  // KPI metrics strictly initialize at 0
-  const [metrics, setMetrics] = useState({
-    pending: 0,
-    inProgress: 0,
-    resolved: 0,
-  });
 
   // Tickets state
   const [tickets, setTickets] = useState([]);
@@ -90,20 +83,6 @@ export default function AdminQueue({ user }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch metrics dynamically
-  const fetchMetricsData = async () => {
-    try {
-      const data = await getMetrics();
-      setMetrics({
-        pending: Number(data.pending) || 0,
-        inProgress: Number(data.inProgress) || 0,
-        resolved: Number(data.resolved) || 0,
-      });
-    } catch (err) {
-      console.error('Failed to fetch admin metrics:', err);
-    }
-  };
-
   // Fetch categories for filtering
   useEffect(() => {
     getCategories()
@@ -119,7 +98,6 @@ export default function AdminQueue({ user }) {
       setLoading(true);
       const params = {};
       if (campusFilter !== 'All') params.campus = campusFilter;
-      if (statusFilter !== 'All') params.status = statusFilter;
       if (categoryFilter !== 'All') params.category = categoryFilter;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
@@ -139,14 +117,10 @@ export default function AdminQueue({ user }) {
   };
 
   useEffect(() => {
-    fetchMetricsData();
-  }, []);
-
-  useEffect(() => {
     if (activeTab === 'queue') {
       fetchTicketsData();
     }
-  }, [campusFilter, statusFilter, categoryFilter, searchQuery, activeTab]);
+  }, [campusFilter, categoryFilter, searchQuery, activeTab]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -165,7 +139,6 @@ export default function AdminQueue({ user }) {
         incomingTicket,
         ...previous.filter((existing) => existing._id !== incomingTicket._id)
       ]);
-      fetchMetricsData();
     };
 
     socket.on('newTicket', handleNewTicket);
@@ -356,13 +329,23 @@ export default function AdminQueue({ user }) {
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
   }, [tickets, sortConfig]);
+  const statusCounts = sortedTickets.reduce((counts, ticket) => {
+    counts.All += 1;
+    if (ticket.status === 'Pending') counts.Pending += 1;
+    if (ticket.status === 'In Progress') counts['In Progress'] += 1;
+    if (ticket.status === 'Resolved') counts.Resolved += 1;
+    return counts;
+  }, { All: 0, Pending: 0, 'In Progress': 0, Resolved: 0 });
+  const displayedTickets = statusFilter === 'All'
+    ? sortedTickets
+    : sortedTickets.filter((ticket) => ticket.status === statusFilter);
 
   return (
     <div className="space-y-6 pb-20">
       <ConsoleHeader
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        ticketCount={tickets.length}
+        ticketCount={displayedTickets.length}
         routingCount={departments.length}
         user={user}
         actionSlot={activeTab === 'routing' ? (
@@ -382,9 +365,9 @@ export default function AdminQueue({ user }) {
       {/* ========================================================= */}
       {activeTab === 'queue' && (
         <QueueList
-          tickets={sortedTickets}
+          tickets={displayedTickets}
           loading={loading}
-          metrics={metrics}
+          statusCounts={statusCounts}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           filterOpen={filterOpen}
