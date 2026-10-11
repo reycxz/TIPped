@@ -243,8 +243,8 @@ export default function QueueList({
 
   return (
     <section className="space-y-4">
-      <div className="-mx-1 overflow-x-auto px-1 md:mx-0 md:overflow-visible md:px-0">
-        <div className="flex w-max gap-2 md:w-auto md:flex-wrap">
+      <div className="px-1 sm:-mx-1 sm:overflow-x-auto md:mx-0 md:overflow-visible md:px-0">
+        <div className="flex flex-wrap gap-2 sm:w-max sm:flex-nowrap md:w-auto md:flex-wrap">
           {statusChips.map((chip) => {
             const isActive = statusFilter === chip.value;
             return (
@@ -256,7 +256,7 @@ export default function QueueList({
                   setStatusFilter(chip.value);
                 }}
                 aria-pressed={isActive}
-                className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+                className={`inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 sm:shrink-0 ${
                   isActive
                     ? 'bg-primary font-bold text-slate-900'
                     : 'border border-slate-300 bg-white font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
@@ -320,7 +320,7 @@ export default function QueueList({
             </button>
 
             {filterOpen && (
-              <div className="absolute right-0 z-50 mt-2 w-56 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+              <div className="static mt-2 w-full space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:absolute sm:right-0 sm:z-50 sm:mt-2 sm:w-56">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Campus
@@ -400,6 +400,13 @@ export default function QueueList({
                         })}
                   </select>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen(false)}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700 dark:text-slate-200 sm:hidden"
+                >
+                  Done
+                </button>
               </div>
             )}
           </div>
