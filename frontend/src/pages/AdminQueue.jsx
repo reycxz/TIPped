@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { getMetrics, getAdminTickets, getCategories } from '../api/tickets';
 import {
