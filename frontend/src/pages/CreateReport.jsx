@@ -495,7 +495,7 @@ export default function CreateReport({
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 sm:p-8 shadow-lg dark:shadow-2xl transition-colors duration-200">
         {/* Constraint 1: Header title horizontally aligned with subtle 'X' close button */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Create Report</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">New Report</h1>
           <button
             type="button"
             onClick={handleCancel}
