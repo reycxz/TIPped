@@ -1,3 +1,5 @@
+require('dns').setServers(['1.1.1.1','8.8.8.8']);
+
 const applyChanges = process.argv.includes('--apply');
 console.log(applyChanges ? 'MODE: APPLY' : 'MODE: DRY RUN (no writes)');
 
