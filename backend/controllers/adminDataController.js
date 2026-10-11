@@ -1,6 +1,12 @@
 const Department = require('../models/Department');
 const Category = require('../models/Category');
 const User = require('../models/User');
+const Ticket = require('../models/Ticket');
+const {
+  getDepartmentCategoryNames,
+  findDepartmentAccounts,
+  syncAccounts,
+} = require('../utils/departmentAccountSync');
 const DEPARTMENT_PALETTE = [
   '#8B5CF6',
   '#EC4899',
@@ -285,12 +291,17 @@ exports.createCategory = async (req, res) => {
       return res.status(400).json({ error: 'Category with this issue name already exists' });
     }
 
+    const oldCategoryNames = await getDepartmentCategoryNames(deptExists.name);
+    const accounts = await findDepartmentAccounts(oldCategoryNames);
+
     const category = new Category({
       issueName: cleanIssueName,
       departmentName: deptExists.name
     });
 
     await category.save();
+    const categoryNames = await getDepartmentCategoryNames(deptExists.name);
+    await syncAccounts(accounts, categoryNames, oldCategoryNames);
     res.status(201).json(category);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -310,31 +321,11 @@ exports.updateCategory = async (req, res) => {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    if (departmentName) {
-      const cleanDepartmentName = departmentName.trim();
-      const deptExists = await Department.findOne({
-        name: { $regex: new RegExp(`^${cleanDepartmentName}$`, 'i') }
-      });
-
-      if (!deptExists) {
-        return res.status(400).json({ error: `Department '${cleanDepartmentName}' does not exist` });
-      }
-
-      category.departmentName = deptExists.name;
-    }
-
-    if (issueName && issueName.trim() !== category.issueName) {
-      const cleanIssueName = issueName.trim();
-      const existingCat = await Category.findOne({
-        _id: { $ne: id },
-        issueName: { $regex: new RegExp(`^${cleanIssueName}$`, 'i') }
-      });
-
-      if (existingCat) {
-        return res.status(400).json({ error: 'Category with this issue name already exists' });
-      }
-
-      category.issueName = cleanIssueName;
+    if (
+      (issueName && issueName.trim() !== category.issueName)
+      || (departmentName && departmentName.trim() !== category.departmentName)
+    ) {
+      return res.status(409).json({ error: 'Renaming or moving categories is not supported yet.' });
     }
 
     await category.save();
@@ -354,22 +345,30 @@ exports.deleteCategory = async (req, res) => {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    const accounts = await User.countDocuments({
-      $or: [
-        { assignedCategories: category.issueName },
-        { departmentCategory: category.issueName },
-      ],
-    });
+    const oldCategoryNames = await getDepartmentCategoryNames(category.departmentName);
+    const accounts = await findDepartmentAccounts(oldCategoryNames);
+    const ticketCount = await Ticket.countDocuments({ issueCategory: category.issueName });
 
-    if (accounts > 0) {
+    if (ticketCount > 0) {
       return res.status(409).json({
-        message: 'Category cannot be deleted while accounts are assigned.',
-        error: 'Category cannot be deleted while accounts are assigned.',
-        counts: { accounts },
+        message: 'Category cannot be deleted while tickets are assigned.',
+        error: 'Category cannot be deleted while tickets are assigned.',
+        counts: { tickets: ticketCount },
+      });
+    }
+
+    if (oldCategoryNames.length === 1 && accounts.length > 0) {
+      const message = 'A department with an account must keep at least one category. Delete the account first.';
+      return res.status(409).json({
+        message,
+        error: message,
+        counts: { accounts: accounts.length },
       });
     }
 
     await Category.findByIdAndDelete(req.params.id);
+    const categoryNames = await getDepartmentCategoryNames(category.departmentName);
+    await syncAccounts(accounts, categoryNames, oldCategoryNames);
     res.status(200).json({ message: 'Category deleted successfully', category });
   } catch (error) {
     res.status(500).json({ error: error.message });

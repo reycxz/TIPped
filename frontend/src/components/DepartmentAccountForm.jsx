@@ -7,33 +7,20 @@ import {
 } from '../api/auth';
 import RoutingDialog from './routing/RoutingDialog';
 
-const getInitialFormData = (mode, account, categories, lockedDepartmentName) => {
+const getInitialFormData = (mode, account) => {
   if (mode === 'edit') {
-    const assignedCategories = Array.isArray(account?.assignedCategories) && account.assignedCategories.length > 0
-      ? account.assignedCategories
-      : (account?.departmentCategory
-        ? [account.departmentCategory]
-        : (categories.length > 0 ? [categories[0]] : []));
-
     return {
       firstName: account?.firstName || '',
       lastName: account?.lastName || '',
-      email: account?.email || '',
       password: '',
-      assignedCategories,
     };
   }
-
-  const assignedCategories = lockedDepartmentName
-    ? [...categories]
-    : (categories.length > 0 ? [categories[0]] : []);
 
   return {
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    assignedCategories,
   };
 };
 
@@ -43,43 +30,24 @@ export default function DepartmentAccountForm({
   mode,
   account = null,
   categories,
-  lockedDepartmentName,
-  categoryDetails = [],
+  departmentName,
   onSaved,
   onClose,
 }) {
   const id = useId();
-  const [formData, setFormData] = useState(() => (
-    getInitialFormData(mode, account, categories, lockedDepartmentName)
-  ));
+  const [formData, setFormData] = useState(() => getInitialFormData(mode, account));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const isEditing = mode === 'edit';
   const titleId = `${id}-title`;
-  const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
-  const departmentCategoryNames = new Set(
-    categoryDetails
-      .filter((category) => normalize(category.departmentName) === normalize(lockedDepartmentName))
-      .map((category) => category.issueName)
-  );
 
   const handleSave = async (event) => {
     event.preventDefault();
     setError('');
-    if (formData.assignedCategories.length === 0) {
-      setError('Please select at least one category');
-      return;
-    }
 
     const payload = {
       firstName: formData.firstName,
       lastName: formData.lastName,
-      assignedCategories: formData.assignedCategories,
-      departmentCategory: isEditing
-        ? formData.assignedCategories.find((category) => departmentCategoryNames.has(category))
-          || account?.departmentCategory
-          || ''
-        : formData.assignedCategories[0] || '',
       password: formData.password || undefined,
     };
 
@@ -92,6 +60,7 @@ export default function DepartmentAccountForm({
         await createDepartmentAccount({
           ...payload,
           email: formData.email,
+          departmentName,
         });
         await onSaved('created');
       }
@@ -126,17 +95,9 @@ export default function DepartmentAccountForm({
           <h2 id={titleId} className="font-display text-xl font-extrabold">
             {isEditing ? 'Edit Account' : 'Create Account'}
           </h2>
-          {isEditing && (
-            <>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{account?.email}</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Department: <span className="font-semibold text-slate-700 dark:text-slate-200">{lockedDepartmentName}</span>
-              </p>
-            </>
-          )}
-          {!isEditing && lockedDepartmentName && (
+          {departmentName && (
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Department: <span className="font-semibold text-slate-700 dark:text-slate-200">{lockedDepartmentName}</span>
+              Department: <span className="font-semibold text-slate-700 dark:text-slate-200">{departmentName}</span>
             </p>
           )}
         </div>
@@ -144,9 +105,10 @@ export default function DepartmentAccountForm({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
         >
           <X className="h-5 w-5" aria-hidden="true" />
+          Close
         </button>
       </div>
 
@@ -197,55 +159,22 @@ export default function DepartmentAccountForm({
           </label>
         )}
 
-        <fieldset>
-          <legend className="mb-1.5 flex w-full items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Categories
-            </span>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">
-              {formData.assignedCategories.length} selected
-            </span>
-          </legend>
-          <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900">
-            {categories.map((category) => {
-              const isChecked = formData.assignedCategories.includes(category);
-              const isLocked = isEditing && !departmentCategoryNames.has(category);
-              return (
-                <label
-                  key={category}
-                  className={`flex min-h-11 items-center gap-3 rounded px-2.5 text-sm transition-colors ${
-                    isChecked
-                      ? 'bg-amber-500/10 font-medium text-amber-700 dark:text-amber-400'
-                      : 'text-slate-700 dark:text-slate-300'
-                  } ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <input
-                    type="checkbox"
-                    value={category}
-                    checked={isChecked}
-                    disabled={isLocked}
-                    onChange={(event) => {
-                      const updated = event.target.checked
-                        ? [...formData.assignedCategories, category]
-                        : formData.assignedCategories.filter((item) => item !== category);
-                      setFormData({
-                        ...formData,
-                        assignedCategories: updated,
-                      });
-                    }}
-                    className="h-4 w-4 rounded border-slate-400 bg-white text-amber-500 focus-visible:ring-2 focus-visible:ring-primary dark:bg-slate-900"
-                  />
-                  <span className={isLocked ? 'text-slate-500 dark:text-slate-400' : ''}>{category}</span>
-                </label>
-              );
-            })}
-            {categories.length === 0 && (
-              <p className="py-3 text-center text-sm text-slate-500 dark:text-slate-400">
-                No categories available
-              </p>
-            )}
+        <div className="space-y-2">
+          <p className="text-sm">Covers all categories of this department</p>
+          <div className="flex flex-wrap gap-2">
+            {categories.map((category) => (
+              <span
+                key={category}
+                className="max-w-full break-words rounded-full border border-slate-300 px-3 py-1 text-sm dark:border-slate-600"
+              >
+                {category}
+              </span>
+            ))}
           </div>
-        </fieldset>
+          {categories.length === 0 && (
+            <p className="text-sm">No categories available</p>
+          )}
+        </div>
 
         <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           {isEditing ? 'New Password' : 'Password'}
