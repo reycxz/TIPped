@@ -11,6 +11,7 @@ import {
   deleteCategory,
 } from '../api/adminData';
 import TicketDrawer from '../components/TicketDrawer';
+import ConsoleHeader from '../components/console/ConsoleHeader';
 import { io } from 'socket.io-client';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ||
@@ -201,7 +202,7 @@ export default function AdminQueue({ user }) {
   };
 
   useEffect(() => {
-    if (user?.role === 'Superadmin' && activeTab === 'routing') {
+    if (user?.role?.toLowerCase() === 'superadmin' && activeTab === 'routing') {
       fetchRoutingData();
     }
   }, [user, activeTab]);
@@ -310,8 +311,6 @@ export default function AdminQueue({ user }) {
       setRoutingError(err.response?.data?.error || 'Failed to delete category');
     }
   };
-
-  const adminName = user?.firstName || '{AdminName}';
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -433,43 +432,12 @@ export default function AdminQueue({ user }) {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Top Banner with Role-Aware Tab Switcher */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-colors duration-200">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-            Welcome, {adminName}!
-          </h1>
-        </div>
-
-        {/* Tab Switcher visible ONLY to Superadmins */}
-        {user?.role === 'Superadmin' && (
-          <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80">
-              <button
-                type="button"
-                onClick={() => setActiveTab('queue')}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                  activeTab === 'queue'
-                    ? 'bg-primary text-slate-900 shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <span>Queue</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('routing')}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                  activeTab === 'routing'
-                    ? 'bg-primary text-slate-900 shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Manage Routing</span>
-              </button>
-            </div>
-          )}
-        </div>
+      <ConsoleHeader
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        ticketCount={tickets.length}
+        user={user}
+      />
 
       {/* ========================================================= */}
       {/* SECTION 1: QUEUE TAB */}
@@ -735,7 +703,7 @@ export default function AdminQueue({ user }) {
       {/* ========================================================= */}
       {/* SECTION 2: MANAGE ROUTING TAB (Superadmin Only) */}
       {/* ========================================================= */}
-      {activeTab === 'routing' && user?.role === 'Superadmin' && (
+      {activeTab === 'routing' && user?.role?.toLowerCase() === 'superadmin' && (
         <div className="space-y-6">
           {/* Notifications */}
           {routingError && (

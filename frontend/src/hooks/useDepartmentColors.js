@@ -72,6 +72,16 @@ export function getCategoryColor(issueName) {
   return findCategoryColor(issueName, cachedDepartmentColors);
 }
 
+export function getCategoryDepartmentName(issueName) {
+  const normalizedIssueName = normalize(issueName);
+  if (!normalizedIssueName) return null;
+
+  const category = cachedDepartmentColors?.categories.find(
+    (item) => normalize(item.issueName) === normalizedIssueName
+  );
+  return category?.departmentName || null;
+}
+
 export function getTicketColor(ticket) {
   return findTicketColor(ticket, cachedDepartmentColors);
 }
