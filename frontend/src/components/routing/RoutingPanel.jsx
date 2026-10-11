@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   Building2,
-  Check,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -11,7 +10,6 @@ import {
 import {
   deleteCategory,
   deleteDepartment,
-  updateDepartment,
 } from '../../api/adminData';
 import { DEPARTMENT_COLOR_FALLBACK, DEPARTMENT_PALETTE } from '../../constants/departmentPalette';
 import DepartmentAccountForm from '../DepartmentAccountForm';
@@ -122,6 +120,12 @@ function DepartmentModal({ departments, onClose, onSubmit }) {
   const [saving, setSaving] = useState(false);
   const titleId = `${id}-title`;
 
+  const allColorsUsed = DEPARTMENT_PALETTE.every(
+    (paletteColor) => departments.some(
+      (department) => normalize(department.color) === normalize(paletteColor)
+    )
+  );
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
@@ -133,6 +137,11 @@ function DepartmentModal({ departments, onClose, onSubmit }) {
     }
     if (cleanPrefix.length > 3) {
       setError('Prefix must be at most 3 characters.');
+      return;
+    }
+
+    if (allColorsUsed) {
+      setError('All colors are in use');
       return;
     }
 
@@ -186,32 +195,37 @@ function DepartmentModal({ departments, onClose, onSubmit }) {
         </label>
         <fieldset>
           <legend className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Department color</legend>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {DEPARTMENT_PALETTE.map((paletteColor) => {
               const usedBy = departments.find(
                 (department) => normalize(department.color) === normalize(paletteColor)
               );
+              const disabled = Boolean(usedBy);
               return (
                 <button
                   key={paletteColor}
                   type="button"
-                  aria-label={usedBy ? `In use by ${usedBy.name}` : `Select color ${paletteColor}`}
+                  aria-label={usedBy ? `In use by ${usedBy.name} (${paletteColor})` : `Select color ${paletteColor}`}
                   title={usedBy ? `In use by ${usedBy.name}` : undefined}
                   aria-pressed={color === paletteColor}
-                  onClick={() => setColor(paletteColor)}
-                  className={`relative inline-flex min-h-11 min-w-20 flex-col items-center justify-center gap-1 rounded-lg border px-2 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
+                  onClick={() => !disabled && setColor(paletteColor)}
+                  disabled={disabled}
+                  className={`relative flex min-h-16 w-full flex-col items-center justify-center gap-1 rounded-lg border px-1 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-slate-800 ${
                     color === paletteColor ? 'border-2 border-slate-900 dark:border-white' : 'border border-slate-300 dark:border-slate-600'
                   }`}
                 >
                   <span className="h-4 w-4 rounded-full" style={{ backgroundColor: paletteColor }} aria-hidden="true" />
-                  <span>{paletteColor}</span>
-                  {usedBy && (
-                    <Check className="absolute right-1 top-1 h-3 w-3 text-slate-900 dark:text-white" aria-hidden="true" />
-                  )}
+                  <span className="truncate">{paletteColor}</span>
+                  {usedBy ? (
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">In use</span>
+                  ) : null}
                 </button>
               );
             })}
           </div>
+          {allColorsUsed && (
+            <p className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300">All colors are in use</p>
+          )}
         </fieldset>
         <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
           <button
@@ -223,7 +237,7 @@ function DepartmentModal({ departments, onClose, onSubmit }) {
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || allColorsUsed}
             className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50 dark:focus-visible:ring-offset-slate-800"
           >
             {saving ? 'Creating...' : 'Create'}
@@ -399,17 +413,6 @@ export default function RoutingPanel({
   const [deleteError, setDeleteError] = useState('');
   const [deleteCounts, setDeleteCounts] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [panelError, setPanelError] = useState('');
-
-  const handleColorChange = async (department, color) => {
-    setPanelError('');
-    try {
-      await updateDepartment(department._id, { color });
-      await onReload();
-    } catch (err) {
-      setPanelError(err.response?.data?.error || 'Failed to update department color');
-    }
-  };
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
@@ -483,12 +486,6 @@ export default function RoutingPanel({
             </button>
           </div>
         )}
-        {panelError && (
-          <p className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300" role="alert">
-            {panelError}
-          </p>
-        )}
-
         {loading && departments.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400" role="status">
             Loading routing data...
@@ -517,42 +514,7 @@ export default function RoutingPanel({
                   className="flex min-w-0 flex-col gap-[18px] rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800"
                 >
                   <div className="flex min-w-0 flex-wrap items-center gap-3">
-                    <AccessiblePopover
-                      label="Change color"
-                      triggerClassName="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-slate-300 px-3 text-sm dark:border-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      triggerContent={<><span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />Color</>}
-                      panelClassName="grid grid-cols-2 gap-1.5"
-                    >
-                      {DEPARTMENT_PALETTE.map((paletteColor) => {
-                        const usedBy = normalize(paletteColor) === normalize(department.color)
-                          ? null
-                          : departments.find(
-                            (otherDepartment) => otherDepartment._id !== department._id
-                              && normalize(otherDepartment.color) === normalize(paletteColor)
-                          );
-                        return (
-                          <button
-                            key={paletteColor}
-                            type="button"
-                            aria-label={usedBy ? `In use by ${usedBy.name}` : `Set color ${paletteColor}`}
-                            title={usedBy ? `In use by ${usedBy.name}` : undefined}
-                            aria-pressed={color === paletteColor}
-                            onClick={async () => {
-                              await handleColorChange(department, paletteColor);
-                            }}
-                            className={`relative inline-flex min-h-11 min-w-20 flex-col items-center justify-center gap-1 rounded-lg border px-2 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                              color === paletteColor ? 'border-2 border-slate-900 dark:border-white' : 'border border-transparent'
-                            }`}
-                          >
-                            <span className="h-4 w-4 rounded-full" style={{ backgroundColor: paletteColor }} aria-hidden="true" />
-                            <span>{paletteColor}</span>
-                            {usedBy && (
-                              <Check className="absolute right-1 top-1 h-3 w-3 text-slate-900 dark:text-white" aria-hidden="true" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </AccessiblePopover>
+                    <span className="inline-flex h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
 
                     <h2 className="min-w-0 flex-1 truncate font-display text-[22px] font-extrabold leading-tight text-slate-900 dark:text-white" title={department.name}>
                       {department.name}
