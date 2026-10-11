@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  ChevronLeft,
+  ChevronRight,
   Filter,
   MoreHorizontal,
   Search,
@@ -9,6 +11,8 @@ import { createPortal } from 'react-dom';
 import useDepartmentColors from '../../hooks/useDepartmentColors';
 import StatusBadge from './StatusBadge';
 import TicketDetailPanel from './TicketDetailPanel';
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 const getCampusCode = (ticket) => {
   const campus = ticket.campus?.toLowerCase();
@@ -86,13 +90,39 @@ export default function QueueList({
   filterRef,
 }) {
   const { getTicketColor } = useDepartmentColors();
+  const [pageSize, setPageSize] = useState(() => {
+    try {
+      const savedPageSize = Number(localStorage.getItem('queuePageSize'));
+      return PAGE_SIZE_OPTIONS.includes(savedPageSize) ? savedPageSize : 10;
+    } catch {
+      return 10;
+    }
+  });
+  const [page, setPage] = useState(1);
   const [isLargeViewport, setIsLargeViewport] = useState(false);
+  const cardRef = useRef(null);
+  const shouldScrollAfterPageChangeRef = useRef(false);
   const sheetRef = useRef(null);
   const openerRef = useRef(null);
   const skipSheetFocusRestoreRef = useRef(false);
   const isDepartmentAccount = user?.role === 'department' || user?.role?.toLowerCase() === 'department';
   const selectedRow = tickets.find((ticket) => ticket._id === selectedTicketId);
   const isSheetOpen = Boolean(selectedRow) && !isLargeViewport;
+  const totalPages = Math.max(1, Math.ceil(tickets.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageTickets = tickets.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageNumbers = totalPages <= 7
+    ? Array.from({ length: totalPages }, (_, index) => index + 1)
+    : [...new Set([1, safePage - 1, safePage, safePage + 1, totalPages])]
+      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+      .sort((left, right) => left - right)
+      .reduce((numbers, pageNumber) => {
+        if (numbers.length > 0 && pageNumber - numbers[numbers.length - 1] > 1) {
+          numbers.push('ellipsis');
+        }
+        numbers.push(pageNumber);
+        return numbers;
+      }, []);
   const gridColumns = isDepartmentAccount
     ? 'grid-cols-[minmax(5.5rem,0.7fr)_minmax(9rem,1.6fr)_minmax(9rem,1.8fr)_7.5rem_2.75rem]'
     : 'grid-cols-[minmax(5.5rem,0.7fr)_minmax(8rem,1.5fr)_minmax(8rem,1.2fr)_minmax(8rem,1.5fr)_7.5rem_2.75rem]';
@@ -109,6 +139,14 @@ export default function QueueList({
     { value: 'In Progress', label: 'In progress', dotClass: 'bg-sky-400' },
     { value: 'Resolved', label: 'Resolved', dotClass: 'bg-emerald-500' },
   ];
+
+  useEffect(() => {
+    if (!shouldScrollAfterPageChangeRef.current) return;
+    shouldScrollAfterPageChangeRef.current = false;
+    if (cardRef.current?.getBoundingClientRect().top < 0) {
+      cardRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [page]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)');
@@ -182,6 +220,24 @@ export default function QueueList({
     }
   };
   const closeSheet = () => setSelectedTicketId(null);
+  const handlePageChange = (nextPage) => {
+    shouldScrollAfterPageChangeRef.current = true;
+    setPage(nextPage);
+  };
+  const handleSortAndResetPage = (sortKey) => {
+    setPage(1);
+    handleSort(sortKey);
+  };
+  const handlePageSizeChange = (event) => {
+    const nextPageSize = Number(event.target.value);
+    try {
+      localStorage.setItem('queuePageSize', String(nextPageSize));
+    } catch {
+      console.error('Failed to save queue page size.');
+    }
+    setPageSize(nextPageSize);
+    setPage(1);
+  };
   const updateSelectedRow = () => {
     if (!selectedRow) return;
     if (!isLargeViewport) {
@@ -201,7 +257,10 @@ export default function QueueList({
               <button
                 key={chip.value}
                 type="button"
-                onClick={() => setStatusFilter(chip.value)}
+                onClick={() => {
+                  setPage(1);
+                  setStatusFilter(chip.value);
+                }}
                 aria-pressed={isActive}
                 className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
                   isActive
@@ -221,7 +280,7 @@ export default function QueueList({
       </div>
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-      <div className="min-w-0 flex-1 rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800">
+      <div ref={cardRef} className="min-w-0 flex-1 rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800">
         <div className="flex flex-col gap-3 rounded-t-3xl border-b border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
@@ -229,14 +288,20 @@ export default function QueueList({
               type="text"
               aria-label="Search tickets"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => {
+                setPage(1);
+                setSearchQuery(event.target.value);
+              }}
               placeholder="Search ID"
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500"
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setPage(1);
+                  setSearchQuery('');
+                }}
                 aria-label="Clear search"
                 className="absolute right-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-700"
               >
@@ -268,7 +333,10 @@ export default function QueueList({
                   </label>
                   <select
                     value={campusFilter}
-                    onChange={(event) => setCampusFilter(event.target.value)}
+                    onChange={(event) => {
+                      setPage(1);
+                      setCampusFilter(event.target.value);
+                    }}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="All">All</option>
@@ -283,7 +351,10 @@ export default function QueueList({
                   </label>
                   <select
                     value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
+                    onChange={(event) => {
+                      setPage(1);
+                      setStatusFilter(event.target.value);
+                    }}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="All">All</option>
@@ -299,7 +370,10 @@ export default function QueueList({
                   </label>
                   <select
                     value={categoryFilter}
-                    onChange={(event) => setCategoryFilter(event.target.value)}
+                    onChange={(event) => {
+                      setPage(1);
+                      setCategoryFilter(event.target.value);
+                    }}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="All">All</option>
@@ -343,15 +417,15 @@ export default function QueueList({
               role="row"
               className={`grid ${gridColumns} gap-3 border-b border-slate-200 bg-slate-50 px-4 dark:border-slate-700 dark:bg-slate-900/60`}
             >
-              <div role="columnheader"><SortHeader label="ID" sortKey="ticketId" handleSort={handleSort} renderSortIndicator={renderSortIndicator} /></div>
-              <div role="columnheader"><SortHeader label="Category" sortKey="category" handleSort={handleSort} renderSortIndicator={renderSortIndicator} /></div>
+              <div role="columnheader"><SortHeader label="ID" sortKey="ticketId" handleSort={handleSortAndResetPage} renderSortIndicator={renderSortIndicator} /></div>
+              <div role="columnheader"><SortHeader label="Category" sortKey="category" handleSort={handleSortAndResetPage} renderSortIndicator={renderSortIndicator} /></div>
               {!isDepartmentAccount && (
-                <div role="columnheader"><SortHeader label="Office" sortKey="department" handleSort={handleSort} renderSortIndicator={renderSortIndicator} /></div>
+                <div role="columnheader"><SortHeader label="Office" sortKey="department" handleSort={handleSortAndResetPage} renderSortIndicator={renderSortIndicator} /></div>
               )}
               <div role="columnheader" className="flex min-h-11 items-center text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                 Location
               </div>
-              <div role="columnheader"><SortHeader label="Status" sortKey="status" handleSort={handleSort} renderSortIndicator={renderSortIndicator} /></div>
+              <div role="columnheader"><SortHeader label="Status" sortKey="status" handleSort={handleSortAndResetPage} renderSortIndicator={renderSortIndicator} /></div>
               <div role="columnheader" className="flex min-h-11 items-center justify-end text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                 Actions
               </div>
@@ -362,7 +436,7 @@ export default function QueueList({
             ) : tickets.length === 0 ? (
               <div className="px-4 py-8 text-center text-xs text-slate-500 dark:text-slate-400">No tickets match the selected criteria.</div>
             ) : (
-              tickets.map((ticket) => {
+              pageTickets.map((ticket) => {
                 const isSelected = selectedTicketId === ticket._id;
                 const campusCode = getCampusCode(ticket);
                 return (
@@ -430,7 +504,7 @@ export default function QueueList({
           ) : tickets.length === 0 ? (
             <div className="px-2 py-8 text-center text-xs text-slate-500 dark:text-slate-400">No tickets match the selected criteria.</div>
           ) : (
-            tickets.map((ticket) => {
+            pageTickets.map((ticket) => {
               const isSelected = selectedTicketId === ticket._id;
               return (
                 <div
@@ -490,6 +564,74 @@ export default function QueueList({
             })
           )}
         </div>
+        {tickets.length > PAGE_SIZE_OPTIONS[0] && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4 dark:border-slate-700">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, tickets.length)} of {tickets.length}
+              </span>
+              <label htmlFor="queue-page-size" className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                Rows per page
+                <select
+                  id="queue-page-size"
+                  value={pageSize}
+                  onChange={handlePageSizeChange}
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                >
+                  {PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <nav aria-label="Pagination" className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handlePageChange(safePage - 1)}
+                disabled={safePage === 1}
+                aria-label="Previous page"
+                className="inline-flex h-11 min-w-11 items-center justify-center rounded-xl border border-slate-300 text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <span className="px-2 text-sm text-slate-600 dark:text-slate-300 sm:hidden">
+                Page {safePage} of {totalPages}
+              </span>
+              {totalPages > 1 && (
+                <div className="hidden items-center gap-1 sm:flex">
+                  {pageNumbers.map((pageNumber, index) => (
+                    pageNumber === 'ellipsis' ? (
+                      <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-slate-500 dark:text-slate-400">...</span>
+                    ) : (
+                      <button
+                        key={pageNumber}
+                        type="button"
+                        onClick={() => handlePageChange(pageNumber)}
+                        aria-current={safePage === pageNumber ? 'page' : undefined}
+                        className={`inline-flex h-11 min-w-11 items-center justify-center rounded-xl border text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                          safePage === pageNumber
+                            ? 'border-primary bg-primary font-bold text-slate-900'
+                            : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {pageNumber}
+                      </button>
+                    )
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handlePageChange(safePage + 1)}
+                disabled={safePage === totalPages}
+                aria-label="Next page"
+                className="inline-flex h-11 min-w-11 items-center justify-center rounded-xl border border-slate-300 text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </nav>
+          </div>
+        )}
       </div>
       {selectedRow && isLargeViewport && (
         <div className="sticky top-4 max-h-[calc(100vh-2rem)] w-[340px] shrink-0 self-start overflow-y-auto">
