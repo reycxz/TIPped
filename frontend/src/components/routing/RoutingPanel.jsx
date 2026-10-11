@@ -425,6 +425,9 @@ export default function RoutingPanel({
       mode,
       account,
       categories: mode === 'create' ? departmentCategories : categories.map((category) => category.issueName),
+      categoryDetails: categories,
+      showContext: true,
+      groupByDepartment: mode === 'edit',
       lockedDepartmentName: mode === 'create' ? department.name : undefined,
     });
   };
@@ -620,7 +623,7 @@ export default function RoutingPanel({
                       className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-slate-300 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
                       <Plus className="h-4 w-4" aria-hidden="true" />
-                      Account
+                      {departmentAccounts.length > 0 ? 'Add another account' : 'Account'}
                     </button>
                   </div>
                 </article>
@@ -650,6 +653,9 @@ export default function RoutingPanel({
           mode={accountForm.mode}
           account={accountForm.account}
           categories={accountForm.categories}
+          categoryDetails={accountForm.categoryDetails}
+          showContext={accountForm.showContext}
+          groupByDepartment={accountForm.groupByDepartment}
           lockedDepartmentName={accountForm.lockedDepartmentName}
           onSaved={handleAccountSaved}
           onClose={() => setAccountForm(null)}
