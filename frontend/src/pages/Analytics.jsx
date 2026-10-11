@@ -3,9 +3,24 @@ import axios from 'axios';
 import { getCategories } from '../api/tickets';
 import { getDepartmentAccounts } from '../api/auth';
 import DepartmentAccountForm from '../components/DepartmentAccountForm';
-import { Plus, Trash2, Edit2, AlertCircle, CheckCircle2, Shield, Users, Building } from 'lucide-react';
+import useDepartmentColors from '../hooks/useDepartmentColors';
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  AlertCircle,
+  CheckCircle2,
+  UserRound,
+  Users,
+  Building2,
+  BarChart3,
+  Clock,
+  RefreshCw,
+  ChevronDown,
+} from 'lucide-react';
 
 export default function Analytics({ user }) {
+  const { getCategoryColor } = useDepartmentColors();
   const [timeframe, setTimeframe] = useState('All Time');
   const [campus, setCampus] = useState('All');
   const [stats, setStats] = useState(null);
@@ -115,33 +130,65 @@ export default function Analytics({ user }) {
     }
   };
 
-  const totalCount = stats?.total ?? 0;
+  const categoryCounts = stats?.categories || [];
+  const maxCategoryCount = Math.max(0, ...categoryCounts.map((category) => category.count || 0));
+  const accountRows = [
+    {
+      label: 'Users',
+      count: stats?.userAccounts ?? stats?.accountDirectory?.user,
+      Icon: Users,
+      iconClass: 'bg-indigo-500/10 text-indigo-500',
+    },
+    {
+      label: 'Department accounts',
+      count: stats?.departmentAccounts ?? stats?.accountDirectory?.department,
+      Icon: Building2,
+      iconClass: 'bg-amber-500/10 text-amber-500',
+    },
+    {
+      label: 'Guests',
+      count: stats?.guestAccounts ?? stats?.accountDirectory?.guest,
+      Icon: UserRound,
+      iconClass: 'bg-slate-500/10 text-slate-500 dark:text-slate-400',
+    },
+  ].filter((account) => account.count !== undefined && account.count !== null);
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Slim Filter Bar holding Campus and Timeframe dropdowns */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 shadow-sm flex items-center justify-end gap-3 transition-colors duration-200">
-        {/* Campus Select Dropdown */}
-        <select
-          value={campus}
-          onChange={(e) => setCampus(e.target.value)}
-          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
-        >
-          <option value="All">All</option>
-          <option value="Arlegui">Arlegui</option>
-          <option value="Casal">Casal</option>
-        </select>
-
-        {/* Timeframe Select Dropdown */}
-        <select
-          value={timeframe}
-          onChange={(e) => setTimeframe(e.target.value)}
-          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
-        >
-          <option value="Last 7 Days">Last 7 Days</option>
-          <option value="Last 30 Days">Last 30 Days</option>
-          <option value="All Time">All Time</option>
-        </select>
+    <div className="space-y-4 pb-20 sm:space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="font-display text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white md:text-4xl">
+          Analytics
+        </h1>
+        <div className="flex flex-wrap gap-3">
+          <div className="relative">
+            <label htmlFor="analytics-campus" className="sr-only">Campus</label>
+            <select
+              id="analytics-campus"
+              value={campus}
+              onChange={(e) => setCampus(e.target.value)}
+              className="h-11 appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-10 text-sm font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              <option value="All">All</option>
+              <option value="Arlegui">Arlegui</option>
+              <option value="Casal">Casal</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+          </div>
+          <div className="relative">
+            <label htmlFor="analytics-timeframe" className="sr-only">Timeframe</label>
+            <select
+              id="analytics-timeframe"
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              className="h-11 appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-10 text-sm font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              <option value="Last 7 Days">Last 7 Days</option>
+              <option value="Last 30 Days">Last 30 Days</option>
+              <option value="All Time">All Time</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -158,179 +205,90 @@ export default function Analytics({ user }) {
         </div>
       )}
 
-      {/* Loading Spinner */}
       {loading ? (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-16 text-center shadow-sm flex flex-col items-center justify-center space-y-3">
+        <div className="flex flex-col items-center justify-center space-y-3 rounded-3xl border border-slate-200 bg-white p-16 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs text-slate-500 dark:text-slate-400">Loading analytics...</span>
         </div>
       ) : (
         <>
-          {/* Stat Cards (Total, Pending, In Progress, Resolved) without subtext lines */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {/* Total Tickets Card */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Total Tickets
-                </span>
-                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-5">
+            {[
+              { label: 'Total', value: stats?.total ?? 0, Icon: BarChart3, tileClass: 'bg-indigo-500/10 text-indigo-500', valueClass: 'text-slate-900 dark:text-white' },
+              { label: 'Pending', value: stats?.pending ?? 0, Icon: Clock, tileClass: 'bg-amber-500/10 text-amber-500', valueClass: 'text-amber-600 dark:text-pending' },
+              { label: 'In progress', value: stats?.inProgress ?? 0, Icon: RefreshCw, tileClass: 'bg-sky-500/10 text-sky-500', valueClass: 'text-sky-600 dark:text-inProgress' },
+              { label: 'Resolved', value: stats?.resolved ?? 0, Icon: CheckCircle2, tileClass: 'bg-emerald-500/10 text-emerald-500', valueClass: 'text-emerald-600 dark:text-resolved' },
+            ].map(({ label, value, Icon, tileClass, valueClass }) => (
+              <div key={label} className="min-w-0 flex-1 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:min-w-[200px] sm:p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 break-words text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 sm:text-[13px] sm:tracking-widest">
+                    {label}
+                  </span>
+                  <span className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:flex ${tileClass}`}>
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                </div>
+                <div className={`mt-2 font-display text-4xl font-extrabold leading-none sm:mt-3 sm:text-[52px] ${valueClass}`}>
+                  {value}
                 </div>
               </div>
-              <div className="text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
-                {stats?.total ?? 0}
-              </div>
-            </div>
-
-            {/* Pending Card */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Pending
-                </span>
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="text-3xl font-extrabold text-amber-500 mt-3">
-                {stats?.pending ?? 0}
-              </div>
-            </div>
-
-            {/* In Progress Card */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  In Progress
-                </span>
-                <div className="p-2 rounded-lg bg-sky-500/10 text-sky-500">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </div>
-              </div>
-              <div className="text-3xl font-extrabold text-sky-500 mt-3">
-                {stats?.inProgress ?? 0}
-              </div>
-            </div>
-
-            {/* Resolved Card */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Resolved
-                </span>
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="text-3xl font-extrabold text-emerald-500 mt-3">
-                {stats?.resolved ?? 0}
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Account Directory */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm space-y-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Account Directory
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">User Accounts</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                    {stats?.userAccounts ?? stats?.accountDirectory?.user ?? 0}
-                  </div>
-                </div>
-                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Department Accounts</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                    {stats?.departmentAccounts ?? stats?.accountDirectory?.department ?? 0}
-                  </div>
-                </div>
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
-                  <Building className="w-4 h-4" />
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Guest Accounts</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                    {stats?.guestAccounts ?? stats?.accountDirectory?.guest ?? 0}
-                  </div>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-500/10 text-slate-400">
-                  <Shield className="w-4 h-4" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Categories Breakdown Section - Sleek & Compact */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Categories Breakdown
-              </div>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                {stats?.categories?.length || 0} categories
-              </span>
-            </div>
-
-            {(!stats?.categories || stats.categories.length === 0) ? (
-              <div className="text-xs text-slate-500 dark:text-slate-400 italic py-4 text-center">
-                No category data recorded
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {stats.categories.map((category) => {
-                  const percentage = totalCount > 0
-                    ? Math.round((category.count / totalCount) * 100)
-                    : 0;
-                  const barWidth = totalCount > 0
-                    ? `${(category.count / totalCount) * 100}%`
-                    : '0%';
-
-                  return (
-                    <div key={category.name} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center space-x-1.5 min-w-0">
-                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+          <div className="flex flex-wrap items-start gap-5">
+            <section className="min-w-[min(100%,320px)] flex-[2_1_320px] rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+              <h2 className="text-[13px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                Categories
+              </h2>
+              {categoryCounts.length === 0 ? (
+                <p className="py-4 text-center text-xs italic text-slate-500 dark:text-slate-400">
+                  No category data recorded
+                </p>
+              ) : (
+                <div className="mt-4 space-y-3 sm:space-y-4">
+                  {categoryCounts.map((category) => {
+                    const count = category.count || 0;
+                    const barWidth = maxCategoryCount > 0 ? `${(count / maxCategoryCount) * 100}%` : '0%';
+                    return (
+                      <div key={category.name} className="space-y-2">
+                        <div className="flex min-w-0 items-center justify-between gap-3">
+                          <span className="min-w-0 break-words text-sm text-slate-800 dark:text-slate-200 sm:text-base">
                             {category.name}
                           </span>
-                          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono shrink-0">
-                            ({percentage}%)
+                          <span className="shrink-0 text-base font-bold text-slate-900 dark:text-white">
+                            {count}
                           </span>
                         </div>
-                        <span className="font-semibold text-slate-900 dark:text-white font-mono shrink-0">
-                          {category.count}
-                        </span>
+                        <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700/60 sm:h-2.5">
+                          <div
+                            className="h-2 rounded-full transition-all duration-500 sm:h-2.5"
+                            style={{ width: barWidth, backgroundColor: getCategoryColor(category.name) || '#94A3B8' }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-700/60 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-amber-500 h-1.5 rounded-full transition-all duration-500"
-                          style={{ width: barWidth }}
-                        />
-                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {accountRows.length > 0 && (
+              <section className="min-w-[min(100%,260px)] flex-[1_1_260px] rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+                <h2 className="text-[13px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Accounts
+                </h2>
+                <div className="mt-4 grid grid-cols-3 gap-2 sm:flex sm:flex-col sm:space-y-4">
+                  {accountRows.map(({ label, count, Icon, iconClass }) => (
+                    <div key={label} className="flex min-w-0 flex-col items-center gap-1 text-center sm:flex-row sm:gap-3 sm:text-left">
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${iconClass}`}>
+                        <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+                      </span>
+                      <span className="order-3 min-w-0 break-words text-center text-xs text-slate-600 dark:text-slate-300 sm:order-none sm:flex-1 sm:text-left sm:text-sm">{label}</span>
+                      <span className="order-2 font-display text-2xl font-extrabold leading-none text-slate-900 dark:text-white sm:order-none sm:text-[28px]">{count}</span>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              </section>
             )}
           </div>
         </>
