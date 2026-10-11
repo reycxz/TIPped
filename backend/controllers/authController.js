@@ -1,7 +1,15 @@
 const User = require('../models/User');
+const Department = require('../models/Department');
+const Category = require('../models/Category');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const {
+  getDepartmentCategoryNames,
+  findDepartmentAccounts,
+} = require('../utils/departmentAccountSync');
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const createEmailTransporter = () => {
   return nodemailer.createTransport({
@@ -534,7 +542,7 @@ exports.changePassword = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.getDepartmentAccounts = async (req, res) => {
   try {
-    const accounts = await User.find({ role: 'Department' }).select('-password').sort({ createdAt: -1 });
+    const accounts = await User.find({ role: { $regex: /^department$/i } }).select('-password').sort({ createdAt: -1 });
     res.json(accounts);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -546,29 +554,56 @@ exports.getDepartmentAccounts = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.createDepartmentAccount = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, assignedCategories, departmentCategory } = req.body;
-    
-    // Extract categories array from assignedCategories, categories, or single departmentCategory
-    let categories = [];
-    if (Array.isArray(assignedCategories) && assignedCategories.length > 0) {
-      categories = assignedCategories;
-    } else if (Array.isArray(req.body.categories) && req.body.categories.length > 0) {
-      categories = req.body.categories;
-    } else if (departmentCategory) {
-      categories = [departmentCategory.trim()];
-    }
+    const { firstName, lastName, email, password, departmentName } = req.body;
+    const requestedCategories = Array.isArray(req.body.assignedCategories) && req.body.assignedCategories.length > 0
+      ? req.body.assignedCategories
+      : (Array.isArray(req.body.categories) && req.body.categories.length > 0
+        ? req.body.categories
+        : []);
+    const firstRequestedCategory = requestedCategories[0] || req.body.departmentCategory;
 
-    if (!email || !password || categories.length === 0) {
-      return res.status(400).json({ error: 'Missing fields: email, password, and at least one category are required' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing fields: email and password are required' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+
+    let department = null;
+    if (departmentName) {
+      const cleanDepartmentName = departmentName.trim();
+      department = await Department.findOne({
+        name: { $regex: new RegExp(`^${escapeRegex(cleanDepartmentName)}$`, 'i') },
+      });
+      if (!department) {
+        return res.status(400).json({ error: `Department '${cleanDepartmentName}' does not exist` });
+      }
+    } else if (typeof firstRequestedCategory === 'string' && firstRequestedCategory.trim()) {
+      const category = await Category.findOne({ issueName: firstRequestedCategory.trim() });
+      if (category) {
+        department = await Department.findOne({ name: category.departmentName });
+      }
+    }
+
+    if (!department) {
+      return res.status(400).json({ error: 'Department name is required or could not be determined from the category' });
+    }
+
+    const categories = await getDepartmentCategoryNames(department.name);
+    if (categories.length === 0) {
+      return res.status(400).json({ error: 'Department must have at least one category' });
+    }
+
+    const existingDepartmentAccounts = await findDepartmentAccounts(categories);
+    if (existingDepartmentAccounts.length > 0) {
+      return res.status(409).json({ error: 'A department account already exists for this department' });
+    }
+
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    const primaryCategory = categories[0] || 'General';
+    const primaryCategory = categories[0];
 
     const user = new User({
       firstName: firstName ? firstName.trim() : primaryCategory,
@@ -596,7 +631,7 @@ exports.createDepartmentAccount = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.updateDepartmentAccount = async (req, res) => {
   try {
-    const { firstName, lastName, assignedCategories, departmentCategory, password } = req.body;
+    const { firstName, lastName, password } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -604,22 +639,6 @@ exports.updateDepartmentAccount = async (req, res) => {
 
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
-
-    if (assignedCategories || req.body.categories || departmentCategory) {
-      let categories = [];
-      if (Array.isArray(assignedCategories) && assignedCategories.length > 0) {
-        categories = assignedCategories;
-      } else if (Array.isArray(req.body.categories) && req.body.categories.length > 0) {
-        categories = req.body.categories;
-      } else if (departmentCategory) {
-        categories = [departmentCategory.trim()];
-      }
-
-      if (categories.length > 0) {
-        user.assignedCategories = categories;
-        user.departmentCategory = categories[0];
-      }
-    }
 
     if (password) user.password = password; // pre-save hook hashes
 
