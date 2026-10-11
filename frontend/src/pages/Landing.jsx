@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import CursorGlow from '../components/CursorGlow';
 import GuestReportModal from '../components/GuestReportModal';
 import Login from './Login';
 import Register from './Register';
@@ -127,6 +128,7 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
           50% { opacity: 0; }
         }
       `}</style>
+      <CursorGlow />
       {/* Header */}
       <Navbar isLanding={true} />
 
