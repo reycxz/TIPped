@@ -1000,8 +1000,21 @@ export default function Queue({ user }) {
         ticket={selectedTicket}
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        onUpdateSuccess={() => {
-          fetchTicketsData();
+        onUpdateSuccess={(updatedTicket) => {
+          if (!updatedTicket?._id) return;
+          setTickets((previous) => {
+            if (updatedTicket.isArchived) {
+              return previous.filter((existing) => existing._id !== updatedTicket._id);
+            }
+            const mappedTicket = {
+              ...updatedTicket,
+              issueCategory: updatedTicket.issueCategory || updatedTicket.category || '',
+              assignedDepartment: updatedTicket.assignedDepartment || '',
+            };
+            return previous.map((existing) => (
+              existing._id === mappedTicket._id ? mappedTicket : existing
+            ));
+          });
           fetchMetricsData();
         }}
       />

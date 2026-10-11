@@ -37,6 +37,14 @@ const CASAL_BUILDINGS = [
   'Casal Garden'
 ];
 
+const sanitizeTicket = (ticket) => {
+  const safeTicket = ticket?.toObject ? ticket.toObject() : { ...ticket };
+  delete safeTicket.submittedBy;
+  delete safeTicket.reportedBy;
+  delete safeTicket.guestEmail;
+  return safeTicket;
+};
+
 // Helper to process images from multer files or body data
 const extractImageUrls = async (req) => {
   const imageUrls = [];
@@ -162,7 +170,7 @@ exports.getMyTickets = async (req, res) => {
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
-    res.json(tickets);
+    res.json(tickets.map(sanitizeTicket));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -252,15 +260,12 @@ exports.createTicket = async (req, res) => {
     });
 
     await ticket.save();
-    const populatedTicket = await Ticket.findById(ticket._id)
-      .populate('submittedBy', 'firstName lastName email role')
-      .populate('reportedBy', 'firstName lastName email role')
-      .lean();
-    emitNewTicket(populatedTicket);
+    const safeTicket = sanitizeTicket(ticket);
+    emitNewTicket(safeTicket);
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket: populatedTicket
+      ticket: safeTicket
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -371,11 +376,8 @@ exports.createGuestTicket = async (req, res) => {
     });
 
     await ticket.save();
-    const populatedTicket = await Ticket.findById(ticket._id)
-      .populate('submittedBy', 'firstName lastName email role')
-      .populate('reportedBy', 'firstName lastName email role')
-      .lean();
-    emitNewTicket(populatedTicket);
+    const safeTicket = sanitizeTicket(ticket);
+    emitNewTicket(safeTicket);
 
     // Constraint 3 & 5: Fire confirmation email non-blocking — does NOT delay the 201 response
     if (guestEmail) {
@@ -384,14 +386,14 @@ exports.createGuestTicket = async (req, res) => {
         category: selectedCategory,
         campus,
         building,
-      }).catch((err) =>
-        console.error('[Nodemailer Error] Guest confirmation (unhandled):', err.message)
+      }).catch(() =>
+        console.error('[Nodemailer Error] Guest confirmation failed')
       );
     }
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket: populatedTicket
+      ticket: safeTicket
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -456,7 +458,7 @@ exports.getTickets = async (req, res) => {
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
-    res.json(tickets);
+    res.json(tickets.map(sanitizeTicket));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -475,7 +477,7 @@ exports.updateTicket = async (req, res) => {
       return res.status(400).json({ error: 'Invalid ticket ID format' });
     }
 
-    const ticket = await Ticket.findById(req.params.id).populate('submittedBy').populate('reportedBy');
+    const ticket = await Ticket.findById(req.params.id);
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
@@ -488,10 +490,36 @@ exports.updateTicket = async (req, res) => {
       if (!userCats.includes(ticket.issueCategory)) {
         return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
       }
+
+      if (ticket.status === 'Resolved') {
+        return res.status(403).json({ error: 'Resolved tickets can only be reopened by an admin.' });
+      }
+
+      const statusOrder = ['Pending', 'In Progress', 'Resolved'];
+      if (status && statusOrder.indexOf(status) < statusOrder.indexOf(ticket.status)) {
+        return res.status(400).json({ error: 'Status can only move forward.' });
+      }
     }
 
-    if (status === 'Resolved' && (!adminNote || !adminNote.trim())) {
+    const oldStatus = ticket.status;
+    const deptToUpdate = req.body.assignedDepartment || category;
+    const noteText = typeof adminNote === 'string' ? adminNote.trim() : '';
+    const statusChanged = Boolean(status && status !== oldStatus);
+    const priorityChanged = Boolean(priority && priority !== ticket.priority);
+    const departmentChanged = Boolean(
+      deptToUpdate && deptToUpdate !== (ticket.assignedDepartment || ticket.category)
+    );
+    const noteAdded = Boolean(noteText);
+
+    if (statusChanged && status === 'Resolved' && !noteText) {
       return res.status(400).json({ error: 'Admin note is required to resolve ticket' });
+    }
+
+    if (!statusChanged && !priorityChanged && !departmentChanged && !noteAdded) {
+      return res.json({
+        message: 'Ticket updated',
+        ticket: sanitizeTicket(ticket),
+      });
     }
 
     // Dynamic Actor Identification (case-normalized)
@@ -506,11 +534,8 @@ exports.updateTicket = async (req, res) => {
       actorPrefix = 'User';
     }
 
-    let statusChanged = false;
-    const oldStatus = ticket.status;
-    if (status && status !== oldStatus) {
+    if (statusChanged) {
       ticket.status = status;
-      statusChanged = true;
       ticket.auditTrail.push({
         action: `${actorPrefix} Status Update`,
         details: `Status changed to ${status}`,
@@ -518,7 +543,7 @@ exports.updateTicket = async (req, res) => {
       });
     }
 
-    if (priority && priority !== ticket.priority) {
+    if (priorityChanged) {
       ticket.priority = priority;
       ticket.auditTrail.push({
         action: `${actorPrefix} Priority Update`,
@@ -527,8 +552,7 @@ exports.updateTicket = async (req, res) => {
       });
     }
 
-    const deptToUpdate = req.body.assignedDepartment || category;
-    if (deptToUpdate && deptToUpdate !== (ticket.assignedDepartment || ticket.category)) {
+    if (departmentChanged) {
       ticket.assignedDepartment = deptToUpdate;
       ticket.auditTrail.push({
         action: 'Department Re-assignment',
@@ -537,17 +561,15 @@ exports.updateTicket = async (req, res) => {
       });
     }
 
-    let noteAdded = false;
-    if (adminNote && adminNote.trim()) {
-      noteAdded = true;
+    if (noteAdded) {
       ticket.adminRemarks.push({
-        note: adminNote.trim(),
+        note: noteText,
         updatedBy: req.user._id,
         timestamp: new Date(),
       });
       ticket.auditTrail.push({
         action: `${actorPrefix} Note`,
-        details: adminNote.trim(),
+        details: noteText,
         performedBy: req.user._id,
       });
     }
@@ -564,32 +586,46 @@ exports.updateTicket = async (req, res) => {
 
       if (reporterId && (reporter.role || '').toLowerCase() === 'user') {
         const reporterRoom = reporterId.toString();
-        console.info(`[Socket.IO] Emitting ticketUpdated for ${updatedTicket.ticketId} to room ${reporterRoom}`);
-        emitToUser(reporterRoom, 'ticketUpdated', updatedTicket);
+        emitToUser(reporterRoom, 'ticketUpdated', sanitizeTicket(updatedTicket));
       }
     }
 
-    // Formal text-only notification dispatched asynchronously without blocking HTTP response
-    const recipientEmail = ticket.submittedBy?.email || ticket.reportedBy?.email || ticket.guestEmail;
-    if ((statusChanged || noteAdded) && recipientEmail) {
-      const formattedTimestamp = new Date(ticket.createdAt).toLocaleString();
-      sendStatusUpdateEmail({
-        to: recipientEmail,
-        ticketId: ticket.ticketId,
-        timestamp: formattedTimestamp,
-        campus: ticket.campus,
-        room: ticket.locationInfo?.room || '',
-        category: ticket.issueCategory || ticket.assignedDepartment || ticket.category || 'General',
-        newStatus: ticket.status,
-        adminNote: adminNote ? adminNote.trim() : 'None',
-      }).catch((mailErr) => {
-        console.error('[Nodemailer Error] Status update email failed:', mailErr.message);
-      });
+    if (statusChanged) {
+      const reporterIds = [ticket.submittedBy, ticket.reportedBy].filter(Boolean);
+      let recipientEmail;
+      try {
+        for (const reporterId of reporterIds) {
+          const reporter = await User.findById(reporterId).select('email');
+          if (reporter?.email) {
+            recipientEmail = reporter.email;
+            break;
+          }
+        }
+      } catch {
+        console.error('[Nodemailer Error] Status update recipient lookup failed');
+      }
+      recipientEmail = recipientEmail || ticket.guestEmail;
+
+      if (recipientEmail) {
+        const formattedTimestamp = new Date(ticket.createdAt).toLocaleString();
+        sendStatusUpdateEmail({
+          to: recipientEmail,
+          ticketId: ticket.ticketId,
+          timestamp: formattedTimestamp,
+          campus: ticket.campus,
+          room: ticket.locationInfo?.room || '',
+          category: ticket.issueCategory || ticket.assignedDepartment || ticket.category || 'General',
+          newStatus: ticket.status,
+          adminNote: noteText || 'None',
+        }).catch(() => {
+          console.error('[Nodemailer Error] Status update email failed');
+        });
+      }
     }
 
     res.json({
       message: 'Ticket updated',
-      ticket,
+      ticket: sanitizeTicket(ticket),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -929,7 +965,7 @@ exports.getArchivedReports = async (req, res) => {
     }
 
     const reports = await Ticket.find(query).sort({ archivedAt: -1, updatedAt: -1 });
-    res.json(reports);
+    res.json(reports.map(sanitizeTicket));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -85,7 +85,7 @@ export default function TicketDrawer({
   }, []);
 
   useEffect(() => {
-    if (ticket) {
+    if (ticket && isOpen) {
       setStatus(ticket.status || 'Pending');
       setPriority(ticket.priority || 'Medium');
       const dept = ticket.assignedDepartment || ticket.category || 'General';
@@ -94,10 +94,19 @@ export default function TicketDrawer({
       setError('');
       setSaving(false);
     }
-  }, [ticket]);
+  }, [ticket, isOpen]);
 
   if (!isOpen || !ticket) return null;
 
+  const isDepartmentUser = user.role === 'department';
+  const departmentTicketResolved = isDepartmentUser && ticket.status === 'Resolved';
+  const availableStatuses = isDepartmentUser
+    ? STATUSES.filter((item) => STATUSES.indexOf(item) >= STATUSES.indexOf(ticket.status))
+    : STATUSES;
+  const hasChanges = status !== (ticket.status || 'Pending')
+    || priority !== (ticket.priority || 'Medium')
+    || assignedDepartment !== (ticket.assignedDepartment || ticket.category || 'General')
+    || Boolean(adminNote.trim());
   const noteLabel = (user.role === 'superadmin' || rawUser.role === 'Superadmin') ? 'ADMIN NOTE' : 'STAFF NOTE';
 
   // Constraint 3: Call archive endpoint and close the detailed view without immediate execution
@@ -149,6 +158,8 @@ export default function TicketDrawer({
       if (onUpdateSuccess) {
         onUpdateSuccess(res.ticket);
       }
+      setAdminNote('');
+      setError('');
       onClose();
     } catch (err) {
       setError(err.response?.data?.error || 'Update failed');
@@ -251,6 +262,11 @@ export default function TicketDrawer({
 
           {/* Controls Form */}
           <form id="drawer-form" onSubmit={handleSubmit} className="space-y-4">
+            {departmentTicketResolved && (
+              <p className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+                This ticket is resolved. Only an admin can reopen it.
+              </p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Department Dropdown (Constraints 1 & 3) */}
               <div>
@@ -259,7 +275,10 @@ export default function TicketDrawer({
                 </label>
                 <select
                   value={assignedDepartment}
-                  onChange={(e) => setAssignedDepartment(e.target.value)}
+                  onChange={(e) => {
+                    setAssignedDepartment(e.target.value);
+                    setError('');
+                  }}
                   disabled={user?.role !== 'superadmin'}
                   className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800/50"
                 >
@@ -281,7 +300,10 @@ export default function TicketDrawer({
                 </label>
                 <select
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
+                  onChange={(e) => {
+                    setPriority(e.target.value);
+                    setError('');
+                  }}
                   disabled={user?.role !== 'superadmin'}
                   className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800/50"
                 >
@@ -300,11 +322,14 @@ export default function TicketDrawer({
                 </label>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  disabled={false}
-                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setError('');
+                  }}
+                  disabled={departmentTicketResolved}
+                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {STATUSES.map((s) => (
+                  {availableStatuses.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -319,7 +344,7 @@ export default function TicketDrawer({
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   {noteLabel}
                 </label>
-                {status === 'Resolved' && (
+                {status === 'Resolved' && !departmentTicketResolved && (
                   <span className="text-[10px] text-amber-500 dark:text-amber-400 font-semibold uppercase">
                     Required
                   </span>
@@ -328,10 +353,14 @@ export default function TicketDrawer({
               <textarea
                 rows={3}
                 required={status === 'Resolved'}
+                disabled={departmentTicketResolved}
                 value={adminNote}
-                onChange={(e) => setAdminNote(e.target.value)}
+                onChange={(e) => {
+                  setAdminNote(e.target.value);
+                  setError('');
+                }}
                 placeholder={noteLabel}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
           </form>
@@ -377,7 +406,7 @@ export default function TicketDrawer({
             type="submit"
             form="drawer-form"
             // Constraint 2: Action Debouncing
-            disabled={saving || (status === 'Resolved' && !adminNote.trim())}
+            disabled={saving || departmentTicketResolved || !hasChanges || (status === 'Resolved' && !adminNote.trim())}
             className="py-2.5 px-6 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
           >
             {saving ? 'Saving...' : 'Save Update'}
