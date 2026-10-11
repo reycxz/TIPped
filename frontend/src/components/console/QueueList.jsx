@@ -52,13 +52,17 @@ function CampusTag({ ticket }) {
   );
 }
 
-function LocationText({ ticket }) {
+function LocationText({ ticket, clamp = false }) {
   const location = ticket.locationInfo?.landmark || ticket.locationInfo?.building || 'Unassigned';
-  const floor = ticket.locationInfo?.floor ?? '?';
+  const floor = ticket.locationInfo?.floor;
+  const hasFloorReference = /\b(floor|flr)\.?\s*\d+/i.test(location);
+  const text = floor !== undefined && floor !== null && floor !== '' && !hasFloorReference
+    ? `${location} · Flr ${floor}`
+    : location;
 
   return (
-    <span className="block truncate" title={`${location} · Flr ${floor}`}>
-      {location} · Flr {floor}
+    <span className={`${clamp ? 'line-clamp-2' : 'truncate'} block`} title={text}>
+      {text}
     </span>
   );
 }
@@ -103,9 +107,9 @@ export default function QueueList({
   const { getTicketColor } = useDepartmentColors();
   const isDepartmentAccount = user?.role === 'department' || user?.role?.toLowerCase() === 'department';
   const gridColumns = isDepartmentAccount
-    ? 'grid-cols-[minmax(6rem,0.9fr)_minmax(9rem,1.4fr)_minmax(11rem,1.7fr)_minmax(7rem,1fr)_2.75rem]'
-    : 'grid-cols-[minmax(6rem,0.9fr)_minmax(9rem,1.4fr)_minmax(8rem,1.2fr)_minmax(11rem,1.7fr)_minmax(7rem,1fr)_2.75rem]';
-  const desktopMinWidth = isDepartmentAccount ? 'min-w-[760px]' : 'min-w-[900px]';
+    ? 'grid-cols-[minmax(6rem,0.8fr)_minmax(12rem,1.8fr)_minmax(12rem,2fr)_minmax(7rem,1fr)_2.75rem]'
+    : 'grid-cols-[minmax(6rem,0.8fr)_minmax(12rem,1.8fr)_minmax(11rem,1.5fr)_minmax(12rem,1.8fr)_minmax(7rem,1fr)_2.75rem]';
+  const desktopMinWidth = isDepartmentAccount ? 'min-w-[820px]' : 'min-w-[1000px]';
   const metricCounts = {
     All: metrics.pending + metrics.inProgress + metrics.resolved,
     Pending: metrics.pending,
@@ -160,8 +164,8 @@ export default function QueueList({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col gap-3 rounded-t-3xl border-b border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
@@ -276,7 +280,7 @@ export default function QueueList({
           </div>
         </div>
 
-        <div className="hidden overflow-x-auto md:block">
+        <div className="hidden overflow-x-auto rounded-b-3xl md:block">
           <div role="table" aria-label="Ticket queue" className={desktopMinWidth}>
             <div
               role="row"
@@ -326,17 +330,19 @@ export default function QueueList({
                         {ticket.ticketId ? ticket.ticketId.slice(-5) : '—'}
                       </span>
                     </div>
-                    <div role="cell" className="flex min-w-0 items-center truncate text-base font-semibold text-slate-900 dark:text-white" title={ticket.issueCategory || ticket.category || 'Unassigned'}>
-                      {ticket.issueCategory || ticket.category || 'Unassigned'}
+                    <div role="cell" className="flex min-w-0 items-center text-base font-semibold text-slate-900 dark:text-white" title={ticket.issueCategory || ticket.category || 'Unassigned'}>
+                      <span className="line-clamp-2">
+                        {ticket.issueCategory || ticket.category || 'Unassigned'}
+                      </span>
                     </div>
                     {!isDepartmentAccount && (
-                      <div role="cell" className="flex min-w-0 items-center gap-2 truncate text-sm text-slate-600 dark:text-slate-300" title={ticket.assignedDepartment || 'Unassigned'}>
+                      <div role="cell" className="flex min-w-0 items-center gap-2 text-sm text-slate-600 dark:text-slate-300" title={ticket.assignedDepartment || 'Unassigned'}>
                         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getTicketColor(ticket) }} aria-hidden="true" />
-                        <span className="truncate">{ticket.assignedDepartment || 'Unassigned'}</span>
+                        <span className="line-clamp-2 min-w-0">{ticket.assignedDepartment || 'Unassigned'}</span>
                       </div>
                     )}
                     <div role="cell" className="flex min-w-0 items-center text-sm text-slate-600 dark:text-slate-300">
-                      <LocationText ticket={ticket} />
+                      <LocationText ticket={ticket} clamp />
                     </div>
                     <div role="cell" className="flex items-center">
                       <StatusBadge status={ticket.status} />
@@ -361,7 +367,7 @@ export default function QueueList({
           </div>
         </div>
 
-        <div className="space-y-3 p-3 md:hidden">
+        <div className="space-y-3 overflow-hidden rounded-b-3xl p-3 md:hidden">
           {loading ? (
             <div className="px-2 py-8 text-center text-xs text-slate-500 dark:text-slate-400">Loading tickets...</div>
           ) : tickets.length === 0 ? (
@@ -390,11 +396,18 @@ export default function QueueList({
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getTicketColor(ticket) }} aria-hidden="true" />
-                      <span className="truncate font-bold text-slate-900 dark:text-white">
-                        {ticket.issueCategory || ticket.category || 'Unassigned'}
-                      </span>
+                    <div className="flex min-w-0 items-start gap-2">
+                      <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getTicketColor(ticket) }} aria-hidden="true" />
+                      <div className="min-w-0">
+                        <span className="block truncate font-bold text-slate-900 dark:text-white">
+                          {ticket.issueCategory || ticket.category || 'Unassigned'}
+                        </span>
+                        {!isDepartmentAccount && (
+                          <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                            {ticket.assignedDepartment || 'Unassigned'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <button
                       type="button"
