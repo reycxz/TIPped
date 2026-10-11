@@ -5,6 +5,7 @@ frontend/dist/
 .env
 backend/.env
 frontend/.env
+tipped-how-it-works-v2.html
 RULES.md
 TIPPED.md
 ARCHITECTURE.md

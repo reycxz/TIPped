@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import CreateReport from './CreateReport';
 import GuestReportModal from '../components/GuestReportModal';
 import Login from './Login';
 import Register from './Register';
-import { Camera, Image as ImageIcon, X } from 'lucide-react';
+import { Camera, Image as ImageIcon } from 'lucide-react';
+
+const HowItWorks = React.lazy(() => import('../components/HowItWorks/HowItWorks'));
 
 export default function Landing({ onLoginSuccess, onConsentRequired }) {
   const location = useLocation();
@@ -291,6 +292,7 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
         )}
 
       </main>
+      <React.Suspense fallback={null}><HowItWorks /></React.Suspense>
     </div>
   );
 }
