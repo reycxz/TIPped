@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getMyTickets, getCategories } from '../api/tickets';
 import { Search, Filter, X, ZoomIn, Clock, MapPin, Tag } from 'lucide-react';
 
 export default function MyReports() {
+  const [searchParams] = useSearchParams();
   const [tickets, setTickets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,7 +12,11 @@ export default function MyReports() {
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const statusParam = searchParams.get('status');
+    const decodedStatus = statusParam ? decodeURIComponent(statusParam) : null;
+    return ['Pending', 'In Progress', 'Resolved'].includes(decodedStatus) ? decodedStatus : 'All';
+  });
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [filterOpen, setFilterOpen] = useState(false);
 
