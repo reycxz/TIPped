@@ -150,6 +150,7 @@ export default function GuestReportModal({
   const [floorError, setFloorError] = useState('');
   const [generalError, setGeneralError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submissionAction, setSubmissionAction] = useState('');
 
   // Email capture and success modal states
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -398,7 +399,7 @@ export default function GuestReportModal({
     setShowEmailModal(true);
   };
 
-  const executeSubmission = async (emailToSubmit = '') => {
+  const executeSubmission = async (emailToSubmit = '', action = 'submit') => {
     // Constraint 3: Ensure category is not empty before submitting
     if (!category || !category.trim()) {
       setCategoryError('Please choose a category');
@@ -412,6 +413,7 @@ export default function GuestReportModal({
     }
 
     setLoading(true);
+    setSubmissionAction(action);
     setEmailSubmissionError('');
 
     try {
@@ -423,6 +425,7 @@ export default function GuestReportModal({
       setEmailSubmissionError(err.response?.data?.error || 'Submission failed');
     } finally {
       setLoading(false);
+      setSubmissionAction('');
     }
   };
 
@@ -802,10 +805,10 @@ export default function GuestReportModal({
                       <button
                         type="button"
                         disabled={loading}
-                        onClick={() => executeSubmission('')}
+                        onClick={() => executeSubmission('', 'skip')}
                         className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs transition-colors"
                       >
-                        {loading ? 'Submitting...' : 'Skip & Submit'}
+                        {loading && submissionAction === 'skip' ? 'Submitting...' : 'Skip & Submit'}
                       </button>
                       <button
                         type="button"
@@ -813,7 +816,7 @@ export default function GuestReportModal({
                         onClick={() => executeSubmission(guestEmail)}
                         className="flex-1 py-2.5 px-3 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-xs transition-colors"
                       >
-                        {loading ? 'Submitting...' : 'Submit'}
+                        {loading && submissionAction === 'submit' ? 'Submitting...' : 'Submit'}
                       </button>
                     </div>
                   </div>
