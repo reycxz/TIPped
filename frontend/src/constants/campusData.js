@@ -41,7 +41,7 @@ export const CAMPUS_PLACES = [
   { id: 'cli', n: 'Clinic', k: 'Facility', c: 'Casal', pts: R(677, 703, 60, 52), l: [707, 735], fl: { 1: ["Medical & Dental Clinic"] }, d: 'Health Services' },
   { id: 'ces', n: 'CES', k: 'Facility', c: 'Casal', pts: R(740, 703, 50, 54), l: [765, 735], fl: { 1: ["Community Extension Services"] }, d: 'Extension Office' },
   { id: 'ann', n: 'PE Center Annex', t: 'PE Center|Annex', k: 'Building', code: 'PE Annex', d: 'PE Center Annex Facility', c: 'Casal', pts: '225,665 362,705 335,795 210,740', l: [286, 730], fl: { 1: ["Annex Gymnasium", "Fitness Room"] } },
-  { id: 'b3', n: 'Building 3', t: 'Building|3', k: 'Building', c: 'Casal', pts: R(405, 702, 60, 110), l: [434, 757], fl: { 1: ["Classrooms"] }, d: 'Classrooms' },
+  { id: 'b3', n: 'Building 3', t: 'Building|3', k: 'Building', c: 'Casal', pts: R(405, 702, 60, 110), l: [434, 757], fl: { 1: ["Storage / Office"], 2: ["Maintenance Department"] } },
   { id: 'PC5', n: 'PC 5', k: 'Building', code: 'PC-5', d: 'Front of Study Area', c: 'Casal', pts: '525,715 625,715 625,773 525,773', l: [575, 748], fl: { 1: ["Seminar Room"] } },
   { id: 'PC12', n: 'PC 12', k: 'Building', code: 'PC-12', d: 'Next to Chapel', c: 'Casal', pts: R(632, 775, 108, 75), l: [686, 826], fl: { 1: ["Chapel", "Seminar Room"], 2: ["OVPAA"] } },
   { id: 'cha', n: 'Chapel', k: 'Facility', c: 'Casal', pts: R(742, 775, 58, 60), l: [771, 810], fl: { 1: ["Chapel Sanctuary"] }, d: 'Campus Chapel (Inside PC 12)' },
@@ -69,6 +69,26 @@ export const CAMPUS_PLACES = [
   { id: 'g3', g: 1, n: 'Gate 3', k: 'Gate', c: 'Casal', x: 790, y: 432 },
   { id: 'ga', g: 1, n: 'Arlegui Gate', t: 'GATE', k: 'Gate', c: 'Arlegui', x: 1358, y: 1560 }
 ];
+
+export const CAMPUS_BUILDINGS = [
+  { id: 'A', campus: 'Arlegui', name: 'Arlegui (A)', prefix: 'A', selectable: true, roomSpecific: true },
+  { id: 'F', campus: 'Casal', name: "Founder's (F)", prefix: 'F', selectable: true, roomSpecific: true },
+  { id: 'C', campus: 'Casal', name: 'Building 2 (C)', prefix: 'C', selectable: true, roomSpecific: true },
+  { id: 'b3', campus: 'Casal', name: 'Building 3', prefix: '', selectable: true, roomSpecific: false },
+  { id: 'PC5', campus: 'Casal', name: 'PC 5', prefix: 'PC5', selectable: true, roomSpecific: true },
+  { id: 'PC12', campus: 'Casal', name: 'PC 12', prefix: 'PC12', selectable: true, roomSpecific: true },
+  { id: 'PE', campus: 'Casal', name: 'PE Center', prefix: 'PE', selectable: true, roomSpecific: true },
+  { id: 'ann', campus: 'Casal', name: 'PE Center Annex', prefix: 'PEA', selectable: true, roomSpecific: false },
+  { id: 'hub', campus: 'Casal', name: 'Student Hub', prefix: 'HUB', selectable: true, roomSpecific: false },
+  { id: 'sta', campus: 'Casal', name: 'Study Area / Canteen', prefix: 'OA', selectable: true, roomSpecific: false },
+  { id: 'con', campus: 'Casal', name: 'Congregating Area', prefix: 'OA', selectable: true, roomSpecific: false },
+  { id: 'gar', campus: 'Casal', name: 'Casal Garden', prefix: 'OA', selectable: true, roomSpecific: false }
+];
+
+export const getCampusBuildingFloors = (buildingId) => {
+  const place = CAMPUS_PLACES.find((candidate) => candidate.id === buildingId);
+  return Object.keys(place?.fl || {}).map(Number).sort((a, b) => a - b);
+};
 
 export const CAMPUS_VIEWS = {
   Casal: [640, 520, 1180],

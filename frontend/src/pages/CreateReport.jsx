@@ -4,6 +4,7 @@ import axios from 'axios';
 import { createTicket, createGuestTicket } from '../api/tickets';
 import { Upload, X, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
 import CampusMap from '../components/CampusMap/CampusMap';
+import { CAMPUS_BUILDINGS, getCampusBuildingFloors } from '../constants/campusData';
 
 // Constraint 1: Arlegui room data dictionary
 const arleguiRooms = {
@@ -14,32 +15,6 @@ const arleguiRooms = {
   '6': ['A-601', 'A-602', 'A-603', 'A-604', 'A-605'],
   '7': ['A-701', 'A-702', 'A-703', 'A-704', 'A-705'] // Sixth Floor Mezzanine
 };
-
-const campusConfig = {
-  Arlegui: {
-    "Arlegui (A)": { prefix: "A", maxFloor: 6 }
-  },
-  Casal: {
-    "Founder's (F)": { prefix: "F", maxFloor: 6 },
-    "Building 2 (C)": { prefix: "C", maxFloor: 3 },
-    "PC 5": { prefix: "PC5", maxFloor: 1 },
-    "PC 12": { prefix: "PC12", maxFloor: 2 },
-    "PE Center": { prefix: "PE", maxFloor: 1 },
-    "PE Center Annex": { prefix: "PEA", maxFloor: 1 },
-    "Student Hub": { prefix: "HUB", maxFloor: 1 },
-    "Study Area / Canteen": { prefix: "OA", maxFloor: 1 },
-    "Congregating Area": { prefix: "OA", maxFloor: 1 },
-    "Casal Garden": { prefix: "OA", maxFloor: 1 }
-  }
-};
-
-const NON_ROOM_BUILDINGS = new Set([
-  'PE Center Annex',
-  'Student Hub',
-  'Study Area / Canteen',
-  'Congregating Area',
-  'Casal Garden'
-]);
 
 export default function CreateReport({
   isGuest = false,
@@ -75,7 +50,8 @@ export default function CreateReport({
 
   // Form states
   const [campus, setCampus] = useState('Arlegui');
-  const [building, setBuilding] = useState('Arlegui (A)');
+  const [buildingId, setBuildingId] = useState('A');
+  const [unmatchedMapBuildingId, setUnmatchedMapBuildingId] = useState('');
   const [floor, setFloor] = useState('1');
   const [room, setRoom] = useState('');
   const [isRoomSpecific, setIsRoomSpecific] = useState(true);
@@ -85,71 +61,45 @@ export default function CreateReport({
   const applyLocationString = (locStr) => {
     if (!locStr) return;
     if (typeof locStr === 'object') {
-      const { building: selectedBuilding, specificArea, campus: selectedCampus, floor: selectedFloor } = locStr;
+      const {
+        buildingId: selectedBuildingId,
+        building: selectedBuildingName,
+        specificArea,
+        campus: selectedCampus,
+        floor: selectedFloor
+      } = locStr;
       const resolvedCampus = selectedCampus || 'Casal';
       const resolvedFloor = String(selectedFloor || '1');
+      const selectedBuilding = CAMPUS_BUILDINGS.find(
+        (option) =>
+          option.id === selectedBuildingId &&
+          option.campus === resolvedCampus &&
+          option.selectable
+      );
       setCampus(resolvedCampus);
-      setBuilding(selectedBuilding);
+      setBuildingId(selectedBuilding?.id || '');
+      setUnmatchedMapBuildingId(selectedBuilding ? '' : selectedBuildingId || '');
       setFloor(resolvedFloor);
       setRoom('');
       setIsRoomSpecific(false);
-      setLandmark(`${specificArea || selectedBuilding}, Floor ${resolvedFloor}, ${resolvedCampus} Campus`);
+      const landmarkName = specificArea || selectedBuilding?.name || selectedBuildingName;
+      setLandmark(landmarkName ? `${landmarkName}, Floor ${resolvedFloor}, ${resolvedCampus} Campus` : '');
       return;
     }
     setLandmark(locStr);
 
-    if (locStr.includes('Casal Campus')) {
-      setCampus('Casal');
-    } else if (locStr.includes('Arlegui Campus')) {
-      setCampus('Arlegui');
-    }
-
-    if (locStr.includes("Founder's Building") || locStr.includes("Founder's")) {
-      setBuilding("Founder's (F)");
-    } else if (locStr.includes("Building 2")) {
-      setBuilding("Building 2 (C)");
-    } else if (locStr.includes("PC 5") || locStr.includes("PC-5")) {
-      setBuilding("PC 5");
-    } else if (locStr.includes("PC 12") || locStr.includes("PC-12")) {
-      setBuilding("PC 12");
-    } else if (locStr.includes("PE Center Annex")) {
-      setBuilding("PE Center Annex");
-    } else if (locStr.includes("PE Center")) {
-      setBuilding("PE Center");
-    } else if (locStr.includes("Student Hub")) {
-      setBuilding("Student Hub");
-    } else if (locStr.includes("Study Area / Canteen")) {
-      setBuilding("Study Area / Canteen");
-    } else if (locStr.includes("Congregating Area")) {
-      setBuilding("Congregating Area");
-    } else if (locStr.includes("Casal Garden")) {
-      setBuilding("Casal Garden");
-    } else if (locStr.includes("Arlegui")) {
-      setBuilding("Arlegui (A)");
-    }
-
-    const matchedBuilding = Object.keys(campusConfig).flatMap((campusName) =>
-      Object.keys(campusConfig[campusName])
-    ).sort((a, b) => b.length - a.length)
-      .find((buildingName) => locStr.includes(buildingName));
-    const selectedBuilding = matchedBuilding ||
-      (locStr.includes("Founder's") ? "Founder's (F)" :
-        locStr.includes("Building 2") ? "Building 2 (C)" :
-          locStr.includes("PC 5") || locStr.includes("PC-5") ? "PC 5" :
-            locStr.includes("PC 12") || locStr.includes("PC-12") ? "PC 12" :
-              locStr.includes("Arlegui") ? "Arlegui (A)" : null);
-    if (selectedBuilding && NON_ROOM_BUILDINGS.has(selectedBuilding)) {
-      setFloor('1');
-      setRoom('');
-      setIsRoomSpecific(false);
-    }
-
+    const resolvedCampus = locStr.includes('Casal Campus')
+      ? 'Casal'
+      : locStr.includes('Arlegui Campus')
+        ? 'Arlegui'
+        : campus;
     const floorMatch = locStr.match(/Floor\s+(\d+)/i);
-    if (floorMatch && !NON_ROOM_BUILDINGS.has(selectedBuilding)) {
-      setFloor(floorMatch[1]);
-      setIsRoomSpecific(false);
-      setRoom('');
-    }
+    setCampus(resolvedCampus);
+    setBuildingId('');
+    setUnmatchedMapBuildingId('');
+    if (floorMatch) setFloor(floorMatch[1]);
+    setRoom('');
+    setIsRoomSpecific(false);
   };
   // Constraint 2: Initialize category as empty string
   const [category, setCategory] = useState('');
@@ -251,48 +201,61 @@ export default function CreateReport({
   }, [floor, campus]);
 
   // Floor options dynamically generated from 1 to maxFloor of the selected building
-  const availableCampuses = Object.keys(campusConfig);
-  const availableBuildings = Object.keys(campusConfig[campus] || {});
-  const currentBuildingConfig = campusConfig[campus]?.[building];
-  const maxFloor = currentBuildingConfig?.maxFloor || 1;
-  const availableFloors = Array.from({ length: maxFloor }, (_, i) => String(i + 1));
+  const availableCampuses = [...new Set(CAMPUS_BUILDINGS.map((option) => option.campus))];
+  const availableBuildings = CAMPUS_BUILDINGS.filter(
+    (option) => option.campus === campus && option.selectable
+  );
+  const currentBuildingConfig =
+    CAMPUS_BUILDINGS.find((option) => option.id === buildingId && option.campus === campus) ||
+    CAMPUS_BUILDINGS.find((option) => option.id === unmatchedMapBuildingId && option.campus === campus);
+  const buildingFloors = getCampusBuildingFloors(currentBuildingConfig?.id);
+  const availableFloors = (buildingFloors.length ? buildingFloors : [1]).map(String);
 
   // Dynamically update building and floor when campus changes
   const handleCampusChange = (e) => {
     const selectedCampus = e.target.value;
     setCampus(selectedCampus);
-    const buildings = Object.keys(campusConfig[selectedCampus] || {});
-    const newBuilding = buildings[0] || '';
-    setBuilding(newBuilding);
+    const newBuilding = CAMPUS_BUILDINGS.find(
+      (option) => option.campus === selectedCampus && option.selectable
+    );
+    setBuildingId(newBuilding?.id || '');
+    setUnmatchedMapBuildingId('');
 
-    const buildingConfig = campusConfig[selectedCampus]?.[newBuilding];
-    const newMaxFloor = buildingConfig?.maxFloor || 1;
-    if (Number(floor) > newMaxFloor) {
-      setFloor('1');
-      if (room) validateRoomFloor('1', room);
-    } else if (room) {
-      validateRoomFloor(floor, room);
-    }
+    const newMaxFloor = Math.max(1, ...getCampusBuildingFloors(newBuilding?.id));
+    const newFloor =
+      !newBuilding?.roomSpecific || Number(floor) > newMaxFloor ? '1' : floor;
+    setFloor(newFloor);
+    if (room) validateRoomFloor(newFloor, room);
+    setLandmark(
+      newBuilding
+        ? `${newBuilding.name}, Floor ${newFloor}, ${selectedCampus} Campus`
+        : ''
+    );
   };
 
   const handleBuildingChange = (e) => {
-    const newBuilding = e.target.value;
-    setBuilding(newBuilding);
-    if (NON_ROOM_BUILDINGS.has(newBuilding)) {
+    const newBuilding = CAMPUS_BUILDINGS.find(
+      (option) => option.id === e.target.value && option.campus === campus && option.selectable
+    );
+    setBuildingId(newBuilding?.id || '');
+    setUnmatchedMapBuildingId('');
+    if (!newBuilding) {
+      setLandmark('');
+      return;
+    }
+    if (!newBuilding.roomSpecific) {
       setFloor('1');
       setRoom('');
       setIsRoomSpecific(false);
       setFloorError('');
+      setLandmark(`${newBuilding.name}, Floor 1, ${campus} Campus`);
       return;
     }
-    const buildingConfig = campusConfig[campus]?.[newBuilding];
-    const newMaxFloor = buildingConfig?.maxFloor || 1;
-    if (Number(floor) > newMaxFloor) {
-      setFloor('1');
-      if (room) validateRoomFloor('1', room);
-    } else if (room) {
-      validateRoomFloor(floor, room);
-    }
+    const newMaxFloor = Math.max(1, ...getCampusBuildingFloors(newBuilding.id));
+    const newFloor = Number(floor) > newMaxFloor ? '1' : floor;
+    setFloor(newFloor);
+    if (room) validateRoomFloor(newFloor, room);
+    setLandmark(`${newBuilding.name}, Floor ${newFloor}, ${campus} Campus`);
   };
 
   // Validate room first digit matches floor
@@ -319,6 +282,9 @@ export default function CreateReport({
   const handleFloorChange = (e) => {
     const val = e.target.value;
     setFloor(val);
+    if (currentBuildingConfig) {
+      setLandmark(`${currentBuildingConfig.name}, Floor ${val}, ${campus} Campus`);
+    }
     if (room) {
       validateRoomFloor(val, room);
     }
@@ -368,7 +334,8 @@ export default function CreateReport({
   // Constraint 2: Reset category to empty string on form reset
   const resetForm = () => {
     setCampus('Arlegui');
-    setBuilding('Arlegui (A)');
+    setBuildingId('A');
+    setUnmatchedMapBuildingId('');
     setFloor('1');
     setRoom('');
     setIsRoomSpecific(true);
@@ -388,7 +355,7 @@ export default function CreateReport({
   const buildFormData = (optionalEmail = '') => {
     const formData = new FormData();
     formData.append('campus', campus);
-    formData.append('building', building);
+    formData.append('building', currentBuildingConfig?.selectable ? currentBuildingConfig.name : '');
     formData.append('floor', floor);
     // Constraint 1: Dynamically template room to start with floor number to satisfy backend floor matching
     const finalRoom = isRoomSpecific ? room.trim() : `${floor} - Common Area`;
@@ -538,13 +505,15 @@ export default function CreateReport({
                 Building
               </label>
               <select
-                value={building}
+                value={buildingId}
+                required
                 onChange={handleBuildingChange}
                 className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
-                {availableBuildings.map((bld) => (
-                  <option key={bld} value={bld}>
-                    {bld}
+                <option value="" />
+                {availableBuildings.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
                   </option>
                 ))}
               </select>

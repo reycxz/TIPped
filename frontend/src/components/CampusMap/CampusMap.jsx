@@ -5,6 +5,7 @@ import TippedLogo from '../TippedLogo';
 import {
   CAMPUS_PLACES,
   CAMPUS_VIEWS,
+  CAMPUS_BUILDINGS,
   BUILDING_CODES,
   OPEN_AREA_PLACES,
   formatLocationString
@@ -210,19 +211,6 @@ const CampusMap = ({
     const pickedPlaceId = selectedPlaceId || selectedPlace.id;
     const confirmedPlaceId = getParentPlaceId(pickedPlaceId);
     const confirmedPlace = CAMPUS_PLACES.find((place) => place.id === confirmedPlaceId) || selectedPlace;
-    const dropdownBuildings = {
-      F: "Founder's (F)",
-      C: 'Building 2 (C)',
-      A: 'Arlegui (A)',
-      PC5: 'PC 5',
-      PC12: 'PC 12',
-      PE: 'PE Center',
-      ann: 'PE Center Annex',
-      hub: 'Student Hub',
-      sta: 'Study Area / Canteen',
-      gar: 'Casal Garden',
-      con: 'Congregating Area'
-    };
     const subAreaNames = {
       cli: 'Clinic',
       ces: 'CES',
@@ -230,12 +218,16 @@ const CampusMap = ({
       Canteen: 'Canteen',
       'Study Area': 'Study Area'
     };
-    const building = dropdownBuildings[confirmedPlaceId] || confirmedPlace.n;
+    const reportBuilding = CAMPUS_BUILDINGS.find(
+      (option) => option.id === confirmedPlaceId && option.campus === confirmedPlace.c
+    );
+    const building = reportBuilding?.name || confirmedPlace.n;
     const specificArea = subAreaNames[pickedPlaceId] ||
       (['F', 'C', 'A', 'PC5', 'PC12', 'PE'].includes(confirmedPlaceId)
         ? building
         : confirmedPlace.n);
     const locationPayload = {
+      buildingId: confirmedPlaceId,
       building,
       specificArea,
       campus: confirmedPlace.c || campus,
@@ -753,6 +745,7 @@ const CampusMap = ({
         }`}
         id="pn"
       >
+        <div className="campus-map-panel-body">
         {!selectedPlace ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -891,10 +884,16 @@ const CampusMap = ({
                 </div>
 
                 <div className="campus-map-k">
-                  Floor {selectedFloor || 1} ·{' '}
-                  {selectedPlace.code
-                    ? `${selectedPlace.code}-${selectedFloor || 1}xx`
-                    : `Floor ${selectedFloor || 1}`}
+                  {selectedPlace.id === 'b3'
+                    ? `Floor ${selectedFloor || 1} - ${(selectedPlace.fl[selectedFloor || 1] || []).join(' / ')}`
+                    : (
+                      <>
+                        Floor {selectedFloor || 1} ·{' '}
+                        {selectedPlace.code
+                          ? `${selectedPlace.code}-${selectedFloor || 1}xx`
+                          : (selectedPlace.fl[selectedFloor || 1] || []).join(' / ') || `Floor ${selectedFloor || 1}`}
+                      </>
+                    )}
                 </div>
                 <ul className="campus-map-ul">
                   {((selectedFloor ? selectedPlace.fl[selectedFloor] : Object.values(selectedPlace.fl)[0]) || []).map((office, idx) => (
@@ -905,18 +904,19 @@ const CampusMap = ({
                 </ul>
               </>
             )}
-
-            {/* Role-Aware: MUST NOT render or exist in DOM if readonly */}
-            {mode !== 'readonly' && (
-              <button
-                type="button"
-                className="campus-map-rep"
-                onClick={handleReport}
-              >
-                {mode === 'picker' ? 'Select Location' : 'Report an issue here'}
-              </button>
-            )}
           </>
+        )}
+        </div>
+
+        {/* Role-Aware: MUST NOT render or exist in DOM if readonly */}
+        {selectedPlace && mode !== 'readonly' && (
+          <button
+            type="button"
+            className="campus-map-rep"
+            onClick={handleReport}
+          >
+            {mode === 'picker' ? 'Select Location' : 'Report an issue here'}
+          </button>
         )}
       </div>
 

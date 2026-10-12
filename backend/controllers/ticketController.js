@@ -27,6 +27,7 @@ const DEFAULT_CATEGORIES = [
 const CASAL_BUILDINGS = [
   "Founder's (F)",
   'Building 2 (C)',
+  'Building 3',
   'PC 5',
   'PC 12',
   'PE Center',

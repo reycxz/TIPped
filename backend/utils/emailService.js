@@ -170,7 +170,7 @@ exports.sendGuestConfirmationEmail = async ({ to, category, campus, building, lo
 
     console.log(`[Nodemailer] Guest confirmation email dispatched to ${to}`);
     return info;
-  } catch (error) {
-    console.error('[Nodemailer Error] Guest confirmation:', error.message);
+  } catch {
+    console.error('[Nodemailer Error] Guest confirmation failed');
   }
 };
