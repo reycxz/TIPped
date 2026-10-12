@@ -6,6 +6,7 @@ import { getMe } from '../api/auth';
 import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
 import CampusMap from './CampusMap/CampusMap';
 import { getCampusBuildingId } from '../constants/campusData';
+import { formatTicketLocation } from '../utils/ticketLocation';
 
 const DEFAULT_DEPARTMENTS = [
   'Maintenance',
@@ -27,6 +28,7 @@ export default function TicketModal({
   onClose,
   onUpdateSuccess,
 }) {
+  const ticketLocation = formatTicketLocation(ticket, 'full');
   const [internalUser, setInternalUser] = useState(propUser || null);
   const [status, setStatus] = useState('Pending');
   const [priority, setPriority] = useState('Medium');
@@ -176,9 +178,16 @@ export default function TicketModal({
                 <Clock className="w-3.5 h-3.5 mr-1" />
                 {new Date(ticket.createdAt).toLocaleDateString()}
               </span>
-              <span className="flex items-center">
-                <MapPin className="w-3.5 h-3.5 mr-1" />
-                {ticket.campus} - {ticket.locationInfo?.room}
+              <span className="flex min-w-0 items-start">
+                <MapPin className="mt-0.5 w-3.5 h-3.5 shrink-0 mr-1" />
+                <span className="min-w-0 truncate" title={ticketLocation.title}>
+                  {ticketLocation.primary}
+                  {ticketLocation.secondary && (
+                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
+                      {ticketLocation.secondary}
+                    </span>
+                  )}
+                </span>
                 <button
                   type="button"
                   onClick={() => setShowMapReadOnly(true)}
@@ -405,9 +414,16 @@ export default function TicketModal({
         <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center">
           <div className="w-full max-w-6xl h-[85vh] flex flex-col bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
+              <div className="flex min-w-0 items-center gap-2 font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
                 <MapPin className="w-4 h-4 text-amber-500" />
-                <span>Campus Map — {ticket.campus} {ticket.locationInfo?.room || ''}</span>
+                <span className="min-w-0 truncate" title={ticketLocation.title}>
+                  Campus Map — {ticketLocation.primary}
+                  {ticketLocation.secondary && (
+                    <span className="block truncate text-xs font-normal text-slate-500 dark:text-slate-400">
+                      {ticketLocation.secondary}
+                    </span>
+                  )}
+                </span>
               </div>
               <button
                 type="button"

@@ -11,6 +11,7 @@ import {
   deleteCategory,
 } from '../api/adminData';
 import TicketDrawer from '../components/TicketDrawer';
+import { formatTicketLocation } from '../utils/ticketLocation';
 import { io } from 'socket.io-client';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ||
@@ -694,17 +695,16 @@ export default function Queue({ user }) {
                           )}
                         </td>
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs">
-                          {ticket.campus ? (
-                            <span>
-                              {ticket.campus}
-                              {ticket.locationInfo?.building ? ` - ${ticket.locationInfo.building}` : ''}
-                              {(ticket.locationInfo?.floor !== undefined || ticket.locationInfo?.room) ? (
-                                ` (Flr ${ticket.locationInfo?.floor ?? '?'}, Rm ${ticket.locationInfo?.room ?? '?'})`
-                              ) : ''}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
+                          <span
+                            className="block truncate"
+                            title={formatTicketLocation(ticket, 'compact', {
+                              campusFiltered: campusFilter !== 'All',
+                            }).title || 'Unassigned'}
+                          >
+                            {formatTicketLocation(ticket, 'compact', {
+                              campusFiltered: campusFilter !== 'All',
+                            }).text || 'Unassigned'}
+                          </span>
                         </td>
                         <td className="px-4 py-3.5">
                           {getStatusBadge(ticket.status)}

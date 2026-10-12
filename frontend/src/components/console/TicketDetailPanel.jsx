@@ -2,46 +2,13 @@ import { useState } from 'react';
 import { Camera, Copy, MapPin, X } from 'lucide-react';
 import { getTicketColor } from '../../hooks/useDepartmentColors';
 import StatusBadge from './StatusBadge';
-
-const getFullLocation = (ticket) => {
-  const locationInfo = ticket.locationInfo || {};
-  const locationParts = [
-    ticket.campus,
-    locationInfo.building,
-    locationInfo.room !== undefined && locationInfo.room !== null && locationInfo.room !== ''
-      ? `Rm ${locationInfo.room}`
-      : '',
-    locationInfo.landmark,
-  ].filter((part) => part !== undefined && part !== null && String(part).trim() !== '');
-  const hasFloorReference = locationParts.some((part) => /\b(floor|flr)\.?\s*\d+/i.test(String(part)));
-  const parts = [
-    ticket.campus,
-    locationInfo.building,
-    locationInfo.floor !== undefined && locationInfo.floor !== null && locationInfo.floor !== '' && !hasFloorReference
-      ? `Flr ${locationInfo.floor}`
-      : '',
-    locationInfo.room !== undefined && locationInfo.room !== null && locationInfo.room !== ''
-      ? `Rm ${locationInfo.room}`
-      : '',
-    locationInfo.landmark,
-  ].filter((part) => part !== undefined && part !== null && String(part).trim() !== '');
-  const uniqueParts = parts.filter((part, index) => {
-    const normalizedPart = String(part).trim().toLowerCase();
-    return !parts.some((otherPart, otherIndex) => {
-      if (index === otherIndex) return false;
-      const normalizedOther = String(otherPart).trim().toLowerCase();
-      return normalizedOther.includes(normalizedPart)
-        && (normalizedOther.length > normalizedPart.length || otherIndex < index);
-    });
-  });
-
-  return uniqueParts.join(' · ');
-};
+import { formatTicketLocation } from '../../utils/ticketLocation';
 
 export default function TicketDetailPanel({ ticket, onClose, onUpdate }) {
   const [imageFailed, setImageFailed] = useState(false);
   const image = Array.isArray(ticket.images) ? ticket.images[0] : null;
   const category = ticket.issueCategory || ticket.category || 'Unassigned';
+  const location = formatTicketLocation(ticket, 'full');
 
   const handleCopyTicketId = async () => {
     try {
@@ -84,7 +51,14 @@ export default function TicketDetailPanel({ ticket, onClose, onUpdate }) {
           </h2>
           <div className="mt-2 flex items-start gap-2 text-sm text-slate-500 dark:text-slate-400">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="break-words">{getFullLocation(ticket)}</span>
+            <span className="min-w-0 truncate" title={location.title}>
+              {location.primary}
+              {location.secondary && (
+                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                  {location.secondary}
+                </span>
+              )}
+            </span>
           </div>
           <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <span

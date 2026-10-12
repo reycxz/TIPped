@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getMyTickets, getCategories } from '../api/tickets';
 import { Search, Filter, X, ZoomIn, Clock, MapPin, Tag } from 'lucide-react';
+import { formatTicketLocation } from '../utils/ticketLocation';
 
 export default function MyReports() {
   const [searchParams] = useSearchParams();
@@ -265,9 +266,11 @@ export default function MyReports() {
                   </div>
                   <div className="flex items-center text-slate-500 dark:text-slate-400">
                     <MapPin className="w-3.5 h-3.5 mr-1.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
-                    <span className="truncate">
-                      {ticket.campus} - {ticket.locationInfo?.building || 'Main'}
-                      {ticket.locationInfo?.room ? ` (Rm ${ticket.locationInfo.room})` : ''}
+                    <span
+                      className="block min-w-0 truncate"
+                      title={formatTicketLocation(ticket, 'compact').title || 'Main'}
+                    >
+                      {formatTicketLocation(ticket, 'compact').text || 'Main'}
                     </span>
                   </div>
                 </div>
