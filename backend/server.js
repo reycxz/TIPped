@@ -1,11 +1,11 @@
+require('dotenv').config();
+require('./config/env');
+
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
+const helmet = require('helmet');
 const http = require('http');
 const connectDB = require('./config/db');
-
-// Load environment variables
-dotenv.config();
 
 require('./cronJobs');
 
@@ -25,9 +25,48 @@ const server = http.createServer(app);
 require('./socket').initializeSocket(server);
 
 // Middleware
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: false
+}));
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// NoSQL Injection Prevention Middleware (Recursively sanitizes input keys)
+const sanitizeInput = (data) => {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(sanitizeInput);
+
+  const clean = {};
+  for (const key of Object.keys(data)) {
+    if (key.startsWith('$') || key.includes('.')) {
+      continue;
+    }
+    clean[key] = /password/i.test(key) ? data[key] : sanitizeInput(data[key]);
+  }
+  return clean;
+};
+
+app.use((req, res, next) => {
+  if (req.body) req.body = sanitizeInput(req.body);
+  if (req.query) {
+    const query = req.query;
+    const cleanQuery = sanitizeInput(query);
+    for (const key of Object.keys(query)) {
+      delete query[key];
+    }
+    Object.assign(query, cleanQuery);
+    Object.defineProperty(req, 'query', {
+      configurable: true,
+      enumerable: true,
+      value: query,
+      writable: true,
+    });
+  }
+  if (req.params) req.params = sanitizeInput(req.params);
+  next();
+});
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -60,29 +99,6 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin-data', adminDataRoutes);
-
-// NoSQL Injection Prevention Middleware (Recursively sanitizes input keys)
-const sanitizeInput = (data) => {
-  if (!data || typeof data !== 'object') return data;
-  if (Array.isArray(data)) return data.map(sanitizeInput);
-
-  const clean = {};
-  for (const key of Object.keys(data)) {
-    // Strip operators starting with '$' or containing '.'
-    if (key.startsWith('$') || key.includes('.')) {
-      continue;
-    }
-    clean[key] = sanitizeInput(data[key]);
-  }
-  return clean;
-};
-
-app.use((req, res, next) => {
-  if (req.body) req.body = sanitizeInput(req.body);
-  if (req.query) req.query = sanitizeInput(req.query);
-  if (req.params) req.params = sanitizeInput(req.params);
-  next();
-});
 
 // 404 Handler
 app.use((req, res, next) => {
