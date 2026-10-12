@@ -85,6 +85,29 @@ export const CAMPUS_BUILDINGS = [
   { id: 'gar', campus: 'Casal', name: 'Casal Garden', prefix: 'OA', selectable: true, roomSpecific: false }
 ];
 
+const normalizeBuildingName = (name) =>
+  String(name || '')
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+export const getCampusBuildingId = (name, campus) => {
+  const normalizedName = normalizeBuildingName(name);
+  if (!normalizedName) return null;
+
+  const building = CAMPUS_BUILDINGS.find((candidate) => {
+    if (campus && candidate.campus !== campus) return false;
+
+    const place = CAMPUS_PLACES.find((item) => item.id === candidate.id);
+    return [candidate.name, candidate.prefix, place?.n, place?.code]
+      .filter(Boolean)
+      .some((label) => normalizeBuildingName(label) === normalizedName);
+  });
+
+  return building?.id || null;
+};
+
 export const getCampusBuildingFloors = (buildingId) => {
   const place = CAMPUS_PLACES.find((candidate) => candidate.id === buildingId);
   return Object.keys(place?.fl || {}).map(Number).sort((a, b) => a - b);
@@ -100,6 +123,7 @@ export const QUICK_CHIPS = ['Registrar', 'Clinic', 'Canteen', 'Library', 'Chapel
 export const BUILDING_CODES = [
   ['F', 'F', ''],
   ['C', 'C', ''],
+  ['b3', 'BLDG. 3', ''],
   ['A', 'A', ''],
   ['PC5', 'PC 5', 'Front of Study Area'],
   ['PC12', 'PC 12', 'Next to Chapel'],

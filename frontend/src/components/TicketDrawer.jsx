@@ -5,6 +5,7 @@ import { getDepartments } from '../api/adminData';
 import { getMe } from '../api/auth';
 import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
 import CampusMap from './CampusMap/CampusMap';
+import { getCampusBuildingId } from '../constants/campusData';
 
 const DEFAULT_DEPARTMENTS = [
   'Maintenance',
@@ -449,6 +450,13 @@ export default function TicketDrawer({
             <div className="flex-1 w-full relative h-full min-h-0 overflow-hidden">
               <CampusMap
                 mode="readonly"
+                initialBuildingId={getCampusBuildingId(
+                  ticket.locationInfo?.building,
+                  ticket.campus
+                )}
+                initialBuildingName={ticket.locationInfo?.building}
+                initialCampus={ticket.campus}
+                initialFloor={ticket.locationInfo?.floor}
                 defaultLocation={
                   ticket.locationInfo?.building
                     ? `${ticket.campus || ''} - ${ticket.locationInfo.building} - Floor ${ticket.locationInfo.floor ?? ''} - ${ticket.locationInfo.room ?? ''} - ${ticket.locationInfo.landmark || ''}`

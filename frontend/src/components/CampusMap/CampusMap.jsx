@@ -8,7 +8,8 @@ import {
   CAMPUS_BUILDINGS,
   BUILDING_CODES,
   OPEN_AREA_PLACES,
-  formatLocationString
+  formatLocationString,
+  getCampusBuildingId
 } from '../../constants/campusData';
 
 const getParentPlaceId = (id) =>
@@ -34,6 +35,10 @@ const NAMED_PLACE_IDS = {
 const CampusMap = ({
   mode = 'picker',
   defaultLocation = '',
+  initialBuildingId = null,
+  initialBuildingName = '',
+  initialCampus = '',
+  initialFloor = null,
   onSelect = () => {},
   onLocationSelect = () => {}
 }) => {
@@ -374,6 +379,33 @@ const CampusMap = ({
     if (mode !== 'readonly' || typeof defaultLocation !== 'string') return;
 
     const location = defaultLocation.trim();
+    const requestedBuildingId =
+      initialBuildingId ||
+      getCampusBuildingId(initialBuildingName, initialCampus);
+    const requestedPlace = requestedBuildingId
+      ? CAMPUS_PLACES.find(
+          (place) =>
+            place.id === requestedBuildingId &&
+            (!initialCampus || place.c === initialCampus)
+        )
+      : null;
+
+    if (requestedPlace) {
+      const timeoutId = setTimeout(() => {
+        pick(requestedPlace.id, initialFloor);
+      }, 150);
+      return () => clearTimeout(timeoutId);
+    }
+
+    if (initialBuildingName) {
+      const ticketCampus = initialCampus || 'Casal';
+      const timeoutId = setTimeout(() => {
+        setCamp(ticketCampus);
+        pick(null);
+      }, 150);
+      return () => clearTimeout(timeoutId);
+    }
+
     if (!location) {
       setCampus('Casal');
       setSelectedPlace(null);
@@ -476,7 +508,18 @@ const CampusMap = ({
         flyTo(getTargetViewBox(...CAMPUS_VIEWS.Casal));
       }
     }
-  }, [mode, defaultLocation, pick, setCamp, flyTo, getTargetViewBox]);
+  }, [
+    mode,
+    defaultLocation,
+    initialBuildingId,
+    initialBuildingName,
+    initialCampus,
+    initialFloor,
+    pick,
+    setCamp,
+    flyTo,
+    getTargetViewBox
+  ]);
 
   // Global keydown (Escape closes panel)
   useEffect(() => {
