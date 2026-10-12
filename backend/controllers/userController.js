@@ -1,6 +1,16 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
+const sanitizeUser = (user) => {
+  if (!user) return null;
+  const userObj = user.toObject ? user.toObject() : { ...user };
+  delete userObj.password;
+  delete userObj.otp;
+  delete userObj.otpExpires;
+  delete userObj.__v;
+  return userObj;
+};
+
 // @desc    Google Sign-In / OAuth
 // @route   POST /api/users/google-auth
 // @access  Public
@@ -53,8 +63,7 @@ exports.googleAuth = async (req, res) => {
 
     if (user) {
       const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-      const userObj = user.toObject();
-      delete userObj.password;
+      const userObj = sanitizeUser(user);
       return res.status(200).json({
         message: 'Google login successful',
         token,
@@ -87,8 +96,7 @@ exports.googleAuth = async (req, res) => {
     await user.save();
 
     const authToken = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    const userObj = user.toObject();
-    delete userObj.password;
+    const userObj = sanitizeUser(user);
 
     return res.status(201).json({
       message: 'Google login successful',
@@ -121,8 +129,7 @@ exports.updateUserProfile = async (req, res) => {
 
     await user.save();
 
-    const userObj = user.toObject();
-    delete userObj.password;
+    const userObj = sanitizeUser(user);
 
     return res.status(200).json({
       message: 'Profile updated successfully',

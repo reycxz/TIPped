@@ -8,6 +8,7 @@ const {
   syncAccounts,
 } = require('../utils/departmentAccountSync');
 const normalizeHex = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
+const escapeRegex = (value) => String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const DEPARTMENT_PALETTE = [
   '#8B5CF6',
@@ -123,7 +124,7 @@ exports.createDepartment = async (req, res) => {
     // Check for uniqueness
     const existing = await Department.findOne({
       $or: [
-        { name: { $regex: new RegExp(`^${cleanName}$`, 'i') } },
+        { name: { $regex: new RegExp(`^${escapeRegex(cleanName)}$`, 'i') } },
         { prefix: cleanPrefix }
       ]
     });
@@ -194,7 +195,7 @@ exports.updateDepartment = async (req, res) => {
       const cleanName = name.trim();
       const existingName = await Department.findOne({
         _id: { $ne: id },
-        name: { $regex: new RegExp(`^${cleanName}$`, 'i') }
+        name: { $regex: new RegExp(`^${escapeRegex(cleanName)}$`, 'i') }
       });
 
       if (existingName) {
@@ -326,7 +327,7 @@ exports.createCategory = async (req, res) => {
 
     // Verify department exists
     const deptExists = await Department.findOne({
-      name: { $regex: new RegExp(`^${cleanDepartmentName}$`, 'i') }
+      name: { $regex: new RegExp(`^${escapeRegex(cleanDepartmentName)}$`, 'i') }
     });
 
     if (!deptExists) {
@@ -335,7 +336,7 @@ exports.createCategory = async (req, res) => {
 
     // Check unique issueName
     const existingCat = await Category.findOne({
-      issueName: { $regex: new RegExp(`^${cleanIssueName}$`, 'i') }
+      issueName: { $regex: new RegExp(`^${escapeRegex(cleanIssueName)}$`, 'i') }
     });
 
     if (existingCat) {

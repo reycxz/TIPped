@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ticketController = require('../controllers/ticketController');
 const { verifyToken, requireRole, authorize } = require('../middleware/auth');
+const { requireScopedTicket } = require('../middleware/ownership');
 const upload = require('../middleware/upload');
 
 // =========================================================================
@@ -27,15 +28,15 @@ router.get('/', verifyToken, requireRole('Department', 'Superadmin'), ticketCont
 router.post('/', verifyToken, upload.array('images', 5), ticketController.createTicket);
 
 // 5. Specific sub-path actions on a document (BEFORE generic /:id)
-router.patch('/:id/archive', verifyToken, authorize('superadmin'), ticketController.archiveReport);
-router.put('/:id/archive', verifyToken, authorize('superadmin'), ticketController.archiveReport);
-router.post('/:id/archive', verifyToken, authorize('superadmin'), ticketController.archiveReport);
-router.patch('/:id/restore', verifyToken, authorize('superadmin'), ticketController.restoreReport);
-router.put('/:id/restore', verifyToken, authorize('superadmin'), ticketController.restoreReport);
-router.post('/:id/restore', verifyToken, authorize('superadmin'), ticketController.restoreReport);
+router.patch('/:id/archive', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.archiveReport);
+router.put('/:id/archive', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.archiveReport);
+router.post('/:id/archive', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.archiveReport);
+router.patch('/:id/restore', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.restoreReport);
+router.put('/:id/restore', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.restoreReport);
+router.post('/:id/restore', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.restoreReport);
 
 // 6. Generic dynamic ID routes (MUST be at the bottom)
-router.put('/:id', verifyToken, requireRole('Department', 'Superadmin'), ticketController.updateTicket);
-router.delete('/:id', verifyToken, authorize('superadmin'), ticketController.deleteReportForever);
+router.put('/:id', verifyToken, requireRole('Department', 'Superadmin'), requireScopedTicket, ticketController.updateTicket);
+router.delete('/:id', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.deleteReportForever);
 
 module.exports = router;

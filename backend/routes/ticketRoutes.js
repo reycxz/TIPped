@@ -1,13 +1,23 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const ticketController = require('../controllers/ticketController');
 const { verifyToken, requireRole, requireStaffOrAdmin } = require('../middleware/auth');
+const { requireScopedTicket } = require('../middleware/ownership');
 
 const upload = require('../middleware/upload');
 
+const guestTicketLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many guest report submissions from this IP, please try again later.' }
+});
+
 // 1. Public static routes
 router.get('/categories', ticketController.getCategories);
-router.post('/guest', upload.array('images', 5), ticketController.createGuestTicket);
+router.post('/guest', guestTicketLimiter, upload.array('images', 5), ticketController.createGuestTicket);
 
 // 2. Protected static collection & metric routes (MUST precede dynamic '/:id' routes)
 router.get('/metrics', verifyToken, ticketController.getMetrics);
@@ -21,13 +31,13 @@ router.get('/', verifyToken, requireRole('Admin', 'Department', 'Superadmin'), t
 router.post('/', verifyToken, upload.array('images', 5), ticketController.createTicket);
 
 // 4. Specific sub-path actions on a document (BEFORE generic /:id)
-router.put('/:id/archive', verifyToken, requireStaffOrAdmin, ticketController.archiveReport);
-router.post('/:id/archive', verifyToken, requireStaffOrAdmin, ticketController.archiveReport);
-router.put('/:id/restore', verifyToken, requireStaffOrAdmin, ticketController.restoreReport);
-router.post('/:id/restore', verifyToken, requireStaffOrAdmin, ticketController.restoreReport);
+router.put('/:id/archive', verifyToken, requireStaffOrAdmin, requireScopedTicket, ticketController.archiveReport);
+router.post('/:id/archive', verifyToken, requireStaffOrAdmin, requireScopedTicket, ticketController.archiveReport);
+router.put('/:id/restore', verifyToken, requireStaffOrAdmin, requireScopedTicket, ticketController.restoreReport);
+router.post('/:id/restore', verifyToken, requireStaffOrAdmin, requireScopedTicket, ticketController.restoreReport);
 
 // 5. Generic dynamic ID routes (MUST be at the bottom)
-router.put('/:id', verifyToken, requireRole('Admin', 'Department', 'Superadmin'), ticketController.updateTicket);
-router.delete('/:id', verifyToken, requireStaffOrAdmin, ticketController.deleteReportForever);
+router.put('/:id', verifyToken, requireRole('Admin', 'Department', 'Superadmin'), requireScopedTicket, ticketController.updateTicket);
+router.delete('/:id', verifyToken, requireStaffOrAdmin, requireScopedTicket, ticketController.deleteReportForever);
 
 module.exports = router;
