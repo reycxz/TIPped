@@ -180,13 +180,8 @@ export default function TicketModal({
               </span>
               <span className="flex min-w-0 items-start">
                 <MapPin className="mt-0.5 w-3.5 h-3.5 shrink-0 mr-1" />
-                <span className="min-w-0 truncate" title={ticketLocation.title}>
+                <span className="min-w-0 break-words" title={ticketLocation.title}>
                   {ticketLocation.primary}
-                  {ticketLocation.secondary && (
-                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
-                      {ticketLocation.secondary}
-                    </span>
-                  )}
                 </span>
                 <button
                   type="button"
@@ -416,13 +411,8 @@ export default function TicketModal({
             <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
               <div className="flex min-w-0 items-center gap-2 font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
                 <MapPin className="w-4 h-4 text-amber-500" />
-                <span className="min-w-0 truncate" title={ticketLocation.title}>
+                <span className="min-w-0 break-words" title={ticketLocation.title}>
                   Campus Map — {ticketLocation.primary}
-                  {ticketLocation.secondary && (
-                    <span className="block truncate text-xs font-normal text-slate-500 dark:text-slate-400">
-                      {ticketLocation.secondary}
-                    </span>
-                  )}
                 </span>
               </div>
               <button

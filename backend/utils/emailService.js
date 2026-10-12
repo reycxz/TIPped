@@ -28,20 +28,26 @@ const formatEmailLocation = (location) => {
   const landmark = String(values.landmark ?? '').trim();
   const normalizeLocation = (value) =>
     String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  const generatedLandmark = [building, floor, campus ? `${campus} Campus` : '']
-    .filter(Boolean)
-    .join(', ');
-  const secondary = landmark &&
-    normalizeLocation(landmark) !== normalizeLocation(generatedLandmark)
-    ? landmark
-    : '';
-  const parts = [campus, building, floor, room].filter(Boolean);
+  let area = landmark;
+  const campusName = campus.replace(/\s+Campus$/i, '');
+  if (campusName) {
+    const escapedCampus = campusName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    area = area.replace(
+      new RegExp(`[,\\s]+${escapedCampus}(?:\\s+Campus)?[\\s.,;:]*$`, 'i'),
+      '',
+    );
+  } else {
+    area = area.replace(/[,\s]+(?:Casal|Arlegui)\s+Campus[\s.,;:]*$/i, '');
+  }
+  area = area.replace(/[,\s]+(?:Floor|Flr)\.?\s*\d+[\s.,;:]*$/i, '').replace(/[\s.,;:]+$/, '').trim();
+  if (normalizeLocation(area) === normalizeLocation(building)) area = '';
+  const locationDetail = area || room;
+  const parts = [campus, building, floor, locationDetail].filter(Boolean);
   const text = parts.join(' · ') || 'T.I.P. Campus';
   const safeParts = parts.length ? parts.map(escapeHtml) : [escapeHtml('T.I.P. Campus')];
-  const html = safeParts.join(' · ')
-    + (secondary ? `<br><small style="font-size: 12px">${escapeHtml(secondary)}</small>` : '');
+  const html = safeParts.join(' · ');
 
-  return { text: secondary ? `${text}\n${secondary}` : text, html };
+  return { text, html };
 };
 
 const createTransporter = () => {

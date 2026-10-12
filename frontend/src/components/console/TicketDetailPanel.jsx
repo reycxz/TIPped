@@ -51,13 +51,8 @@ export default function TicketDetailPanel({ ticket, onClose, onUpdate }) {
           </h2>
           <div className="mt-2 flex items-start gap-2 text-sm text-slate-500 dark:text-slate-400">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate" title={location.title}>
+            <span className="min-w-0 break-words" title={location.title}>
               {location.primary}
-              {location.secondary && (
-                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                  {location.secondary}
-                </span>
-              )}
             </span>
           </div>
           <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
