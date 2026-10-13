@@ -1,7 +1,9 @@
 import axios from 'axios';
+import { API_BASE_URL, buildApiUrl, buildAxiosConfig } from './config';
 
 const api = axios.create({
-  baseURL: '/api/tickets',
+  baseURL: `${API_BASE_URL}/api/tickets`,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -33,6 +35,7 @@ export const getCategories = async () => {
 export const createTicket = async (ticketData) => {
   const isFormData = typeof FormData !== 'undefined' && ticketData instanceof FormData;
   const response = await api.post('/', ticketData, {
+    ...buildAxiosConfig(),
     headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
   });
   return response.data;
@@ -41,6 +44,7 @@ export const createTicket = async (ticketData) => {
 export const createGuestTicket = async (ticketData) => {
   const isFormData = typeof FormData !== 'undefined' && ticketData instanceof FormData;
   const response = await api.post('/guest', ticketData, {
+    ...buildAxiosConfig(),
     headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
   });
   return response.data;
@@ -55,9 +59,10 @@ export const getAnalytics = async (params = {}) => {
   const token = localStorage.getItem('token');
   const config = {
     params,
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+    ...buildAxiosConfig(),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   };
-  const response = await axios.get('/api/reports/analytics', config);
+  const response = await axios.get(buildApiUrl('/api/reports/analytics'), config);
   return response.data;
 };
 
@@ -66,40 +71,42 @@ export const updateTicket = async (id, updateData) => {
   return response.data;
 };
 
-// Archive / Bin API Endpoints
 export const getArchivedReports = async () => {
   const token = localStorage.getItem('token');
-  const response = await axios.get('/api/reports/archived', {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  const response = await axios.get(buildApiUrl('/api/reports/archived'), {
+    ...buildAxiosConfig(),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   return response.data;
 };
 
 export const archiveReport = async (id) => {
   const token = localStorage.getItem('token');
-  const response = await axios.put(`/api/reports/${id}/archive`, {}, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  const response = await axios.put(buildApiUrl(`/api/reports/${id}/archive`), {}, {
+    ...buildAxiosConfig(),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   return response.data;
 };
 
 export const restoreReport = async (id) => {
   const token = localStorage.getItem('token');
-  const response = await axios.put(`/api/reports/${id}/restore`, {}, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  const response = await axios.put(buildApiUrl(`/api/reports/${id}/restore`), {}, {
+    ...buildAxiosConfig(),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   return response.data;
 };
 
 export const deleteReportForever = async (id) => {
   const token = localStorage.getItem('token');
-  const response = await axios.delete(`/api/reports/${id}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  const response = await axios.delete(buildApiUrl(`/api/reports/${id}`), {
+    ...buildAxiosConfig(),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   return response.data;
 };
 
-// Aliases
 export const getArchivedTickets = getArchivedReports;
 export const archiveTicket = archiveReport;
 export const restoreTicket = restoreReport;
