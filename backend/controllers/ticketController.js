@@ -47,6 +47,24 @@ const sanitizeTicket = (ticket) => {
   return safeTicket;
 };
 
+const sanitizeReporterTicket = (ticket, role) => {
+  const safeTicket = sanitizeTicket(ticket);
+  const normalizedRole = typeof role === 'string' ? role.toLowerCase() : '';
+
+  if (['admin', 'superadmin', 'department'].includes(normalizedRole)) {
+    return safeTicket;
+  }
+
+  delete safeTicket.priority;
+  if (Array.isArray(safeTicket.auditTrail)) {
+    safeTicket.auditTrail = safeTicket.auditTrail.filter(
+      (entry) => typeof entry?.action !== 'string' || !entry.action.endsWith('Priority Update')
+    );
+  }
+
+  return safeTicket;
+};
+
 // Helper to process images from multer files or body data
 const extractImageUrls = async (req) => {
   const imageUrls = [];
@@ -162,7 +180,7 @@ exports.getMyTickets = async (req, res) => {
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
-    res.json(tickets.map(sanitizeTicket));
+    res.json(tickets.map((ticket) => sanitizeReporterTicket(ticket, req.user?.role)));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -257,7 +275,7 @@ exports.createTicket = async (req, res) => {
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket: safeTicket
+      ticket: sanitizeReporterTicket(ticket, req.user?.role)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -390,7 +408,7 @@ exports.createGuestTicket = async (req, res) => {
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket: safeTicket
+      ticket: sanitizeReporterTicket(ticket)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -561,7 +579,7 @@ exports.updateTicket = async (req, res) => {
 
       if (reporterId && (reporter.role || '').toLowerCase() === 'user') {
         const reporterRoom = reporterId.toString();
-        emitToUser(reporterRoom, 'ticketUpdated', sanitizeTicket(updatedTicket));
+        emitToUser(reporterRoom, 'ticketUpdated', sanitizeReporterTicket(updatedTicket, reporter.role));
       }
     }
 

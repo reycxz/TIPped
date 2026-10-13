@@ -18,7 +18,7 @@ const DEFAULT_DEPARTMENTS = [
   'General',
 ];
 
-const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
+const PRIORITIES = ['Low', 'Medium', 'High'];
 const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 
 export default function TicketDrawer({
@@ -106,6 +106,7 @@ export default function TicketDrawer({
   const availableStatuses = isDepartmentUser
     ? STATUSES.filter((item) => STATUSES.indexOf(item) >= STATUSES.indexOf(ticket.status))
     : STATUSES;
+  const displayPriority = PRIORITIES.includes(priority) ? priority : 'High';
   const hasChanges = status !== (ticket.status || 'Pending')
     || priority !== (ticket.priority || 'Medium')
     || assignedDepartment !== (ticket.assignedDepartment || ticket.category || 'General')
@@ -181,7 +182,7 @@ export default function TicketDrawer({
                 {ticket.ticketId}
               </span>
               <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
-                {priority}
+                {displayPriority}
               </span>
             </div>
             <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 space-x-4">
@@ -304,7 +305,7 @@ export default function TicketDrawer({
                   Priority
                 </label>
                 <select
-                  value={priority}
+                  value={displayPriority}
                   onChange={(e) => {
                     setPriority(e.target.value);
                     setError('');

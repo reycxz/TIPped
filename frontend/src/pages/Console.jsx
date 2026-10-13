@@ -313,10 +313,14 @@ export default function Console({ user }) {
   };
 
   // Constraint 6: Priority Color Mapping
+  const getDisplayPriority = (priority) => {
+    if (['Low', 'Medium', 'High'].includes(priority)) return priority;
+    // Temporary legacy fallback: unsupported stored priorities display as High.
+    return 'High';
+  };
+
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'Critical':
-        return 'bg-red-500';
+    switch (getDisplayPriority(priority)) {
       case 'High':
         return 'bg-orange-500';
       case 'Medium':
@@ -646,7 +650,7 @@ export default function Console({ user }) {
                           <div className="flex items-center">
                             <span
                               className={`w-3 h-3 rounded-full inline-block mr-2 flex-shrink-0 ${getPriorityColor(ticket.priority)}`}
-                              title={`Priority: ${ticket.priority || 'Unassigned'}`}
+                              title={`Priority: ${getDisplayPriority(ticket.priority)}`}
                             />
                             <span>{ticket.ticketId || <span className="text-gray-400 italic">No ID</span>}</span>
                           </div>
