@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginUser, googleAuthApi } from '../api/auth';
+import { getErrorMessage } from '../api/config';
 import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
@@ -74,7 +75,7 @@ export default function Login({
       }
     } catch (err) {
       const status = err.response?.status;
-      const serverMessage = err.response?.data?.message || err.response?.data?.error;
+      const serverMessage = getErrorMessage(err, 'An error occurred');
 
       if (status === 429) {
         setError(serverMessage || 'Too many login attempts. Please try again later.');
@@ -84,8 +85,6 @@ export default function Login({
       const nextFailures = failedAttempts + 1;
       setFailedAttempts(nextFailures);
 
-      // After more than 5 failed attempts the server may be locking the account
-      // (it returns the same 401 as a wrong password). Point the user to password recovery.
       if (nextFailures > 5) {
         setError('Please check spelling or click Forgot password');
       } else {
@@ -164,7 +163,7 @@ export default function Login({
         }
       } catch (err) {
         console.error('Google Sign-In failed:', err);
-        setError(err.response?.data?.message || err.response?.data?.error || 'Google Sign-In failed. Please try again.');
+        setError(getErrorMessage(err, 'Google Sign-In failed. Please try again.'));
       } finally {
         setGoogleLoading(false);
       }

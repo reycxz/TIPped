@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Check, X } from 'lucide-react';
+import { MAX_IMAGE_COUNT, MAX_IMAGE_SIZE_BYTES } from '../constants/imageUploadLimits';
 
 export default function CameraFAB({ onCapture, onClick, className = '' }) {
   const fileInputRef = useRef(null);
@@ -22,8 +23,14 @@ export default function CameraFAB({ onCapture, onClick, className = '' }) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Limit to max 5 photos
-    const filesToProcess = files.slice(0, 5);
+    const filesWithinSizeLimit = files.filter((file) => file.size <= MAX_IMAGE_SIZE_BYTES);
+    const filesToProcess = filesWithinSizeLimit.slice(0, MAX_IMAGE_COUNT);
+    if (filesWithinSizeLimit.length !== files.length) {
+      window.alert('Each photo must be 5 MB or smaller. Oversized photos were not added.');
+    } else if (files.length > MAX_IMAGE_COUNT) {
+      window.alert(`You can upload up to ${MAX_IMAGE_COUNT} photos.`);
+    }
+    if (filesToProcess.length === 0) return;
 
     const readers = filesToProcess.map((file) => {
       return new Promise((resolve) => {

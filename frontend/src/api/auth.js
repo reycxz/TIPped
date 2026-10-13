@@ -1,13 +1,14 @@
 import axios from 'axios';
+import { API_BASE_URL, buildApiUrl, buildAxiosConfig } from './config';
 
 const api = axios.create({
-  baseURL: '/api/auth',
+  baseURL: `${API_BASE_URL}/api/auth`,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to attach JWT token if present
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -22,17 +23,17 @@ export const loginUser = async (email, password) => {
 };
 
 export const googleAuthApi = async (userData) => {
-  const response = await axios.post('/api/auth/google-auth', userData);
+  const response = await axios.post(buildApiUrl('/api/auth/google-auth'), userData, buildAxiosConfig());
   return response.data;
 };
 
 export const acceptPrivacyConsent = async (consentToken) => {
-  const response = await axios.post('/api/auth/consent', { consentToken });
+  const response = await axios.post(buildApiUrl('/api/auth/consent'), { consentToken }, buildAxiosConfig());
   return response.data;
 };
 
 export const declinePrivacyConsent = async (consentToken) => {
-  const response = await axios.post('/api/auth/decline', { consentToken });
+  const response = await axios.post(buildApiUrl('/api/auth/decline'), { consentToken }, buildAxiosConfig());
   return response.data;
 };
 
@@ -90,7 +91,8 @@ export const updateDepartmentAccount = async (id, accountData) => {
 
 export const deleteDepartmentAccount = async (id) => {
   const token = localStorage.getItem('token');
-  const response = await axios.delete(`/api/admin/users/${id}`, {
+  const response = await axios.delete(buildApiUrl(`/api/admin/users/${id}`), {
+    ...buildAxiosConfig(),
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   return response.data;
@@ -98,7 +100,8 @@ export const deleteDepartmentAccount = async (id) => {
 
 export const deleteUserAccount = async (id) => {
   const token = localStorage.getItem('token');
-  const response = await axios.delete(`/api/admin/users/${id}`, {
+  const response = await axios.delete(buildApiUrl(`/api/admin/users/${id}`), {
+    ...buildAxiosConfig(),
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   return response.data;

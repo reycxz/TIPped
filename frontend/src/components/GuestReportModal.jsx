@@ -4,6 +4,7 @@ import { createGuestTicket } from '../api/tickets';
 import { Upload, X, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
 import CampusMap from './CampusMap/CampusMap';
 import { CAMPUS_BUILDINGS, getCampusBuildingFloors } from '../constants/campusData';
+import { getPhotoSize, MAX_IMAGE_COUNT, MAX_IMAGE_SIZE_BYTES } from '../constants/imageUploadLimits';
 
 const arleguiRooms = {
   '1': ['A-101', 'A-102', 'A-103', 'A-104', 'A-105', 'A-106', 'A-107', 'A-108', 'A-109', 'A-110'],
@@ -281,10 +282,18 @@ export default function GuestReportModal({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    const remainingSlots = 5 - photos.length;
+    const remainingSlots = MAX_IMAGE_COUNT - photos.length;
     if (remainingSlots <= 0) return;
 
-    const filesToProcess = files.slice(0, remainingSlots);
+    const validFiles = files.filter((file) => file.size <= MAX_IMAGE_SIZE_BYTES);
+    const filesToProcess = validFiles.slice(0, remainingSlots);
+    if (files.some((file) => file.size > MAX_IMAGE_SIZE_BYTES)) {
+      setGeneralError('Each photo must be 5 MB or smaller. Oversized photos were not added.');
+    } else if (files.length > remainingSlots) {
+      setGeneralError(`You can upload up to ${MAX_IMAGE_COUNT} photos.`);
+    } else {
+      setGeneralError('');
+    }
     const readers = filesToProcess.map((file) => {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -381,6 +390,16 @@ export default function GuestReportModal({
     // Block submission and display error if category is empty
     if (!category || !category.trim()) {
       setCategoryError('Please choose a category');
+      return;
+    }
+
+    if (photos.length > MAX_IMAGE_COUNT) {
+      setGeneralError(`You can upload up to ${MAX_IMAGE_COUNT} photos.`);
+      return;
+    }
+
+    if (photos.some((photo) => getPhotoSize(photo) > MAX_IMAGE_SIZE_BYTES)) {
+      setGeneralError('Each photo must be 5 MB or smaller.');
       return;
     }
 
@@ -692,7 +711,7 @@ export default function GuestReportModal({
               </div>
             )}
 
-            {photos.length < 5 && (
+            {photos.length < MAX_IMAGE_COUNT && (
               <label className="flex items-center justify-center p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg cursor-pointer hover:border-primary transition-colors bg-slate-50/80 dark:bg-slate-900/50">
                 <Upload className="w-5 h-5 text-slate-500 dark:text-slate-400 mr-2" />
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
