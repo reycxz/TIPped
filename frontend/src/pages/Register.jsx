@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser, verifyRegistrationOtp } from '../api/auth';
 import { AlertCircle, Eye, EyeOff, X } from 'lucide-react';
+import programGroups from '../constants/programs.json';
 
 export default function Register({
   onLoginSuccess,
@@ -231,29 +232,13 @@ export default function Register({
             <option value="" disabled>
               Select your program
             </option>
-            <optgroup label="College of Engineering and Architecture">
-              <option value="BS Architecture">BS Architecture</option>
-              <option value="BS Chemical Engineering">BS Chemical Engineering</option>
-              <option value="BS Civil Engineering">BS Civil Engineering</option>
-              <option value="BS Computer Engineering">BS Computer Engineering</option>
-              <option value="BS Electrical Engineering">BS Electrical Engineering</option>
-              <option value="BS Electronics Engineering">BS Electronics Engineering</option>
-              <option value="BS Industrial Engineering">BS Industrial Engineering</option>
-              <option value="BS Mechanical Engineering">BS Mechanical Engineering</option>
-            </optgroup>
-            <optgroup label="College of Computer Studies">
-              <option value="BS Computer Science">BS Computer Science</option>
-              <option value="BS Information Systems">BS Information Systems</option>
-              <option value="BS Information Technology">BS Information Technology</option>
-            </optgroup>
-            <optgroup label="College of Business Education">
-              <option value="BS Accountancy">BS Accountancy</option>
-              <option value="BS Accounting Information Systems">BS Accounting Information Systems</option>
-              <option value="BS Business Administration">BS Business Administration</option>
-            </optgroup>
-            <optgroup label="College of Arts">
-              <option value="BA Political Science">BA Political Science</option>
-            </optgroup>
+            {programGroups.map(({ college, programs }) => (
+              <optgroup key={college} label={college}>
+                {programs.map((program) => (
+                  <option key={program} value={program}>{program}</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </div>
 

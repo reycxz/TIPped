@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: 'Not Specified'
     },
+    programChangedAt: {
+      type: Date,
+      default: null
+    },
     password: {
       type: String,
       required: false,
