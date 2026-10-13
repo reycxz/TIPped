@@ -153,7 +153,16 @@ exports.register = async (req, res, next) => {
 
     // Database check before generating or sending the OTP
     const existingUser = (await User.findOne({ email: req.body.email })) || (await User.findOne({ email: normalizedEmail }));
-    if (existingUser) {
+    const pendingExpired = Boolean(
+      existingUser &&
+      existingUser.isVerified === false &&
+      !isStaffRole(existingUser.role) &&
+      (!existingUser.otpExpires || existingUser.otpExpires < new Date())
+    );
+    if (pendingExpired) {
+      await User.deleteOne({ _id: existingUser._id });
+    }
+    if (existingUser && !pendingExpired) {
       return res.status(400).json({
         message: 'Email already exists. Please log in.',
         error: 'Email already exists. Please log in.'
@@ -306,6 +315,12 @@ exports.login = async (req, res, next) => {
       return res.status(401).json(INVALID);
     }
 
+    if (user.isVerified !== true) {
+      await loginGuard.succeed(user);
+      logLoginEvent('unverified_account', req, user);
+      return res.status(401).json(INVALID);
+    }
+
     await loginGuard.succeed(user);
     return sendAuthResponse(res, user);
   } catch (error) {
@@ -378,6 +393,18 @@ exports.googleAuth = async (req, res) => {
     if (user) {
       if (isStaffRole(user.role)) {
         return res.status(403).json({ error: 'Staff accounts must sign in with email and password' });
+      }
+
+      if (user.isVerified === false) {
+        // Google has just proven control of this institutional mailbox, so any password or OTP set on an unverified local record belongs to someone else.
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { isVerified: true, authProvider: 'google' }, $unset: { password: '', otp: '', otpExpires: '' } }
+        );
+        user = await User.findById(user._id);
+        if (!user) {
+          return res.status(401).json({ error: 'Invalid or expired Google OAuth token' });
+        }
       }
 
       return sendAuthResponse(res, user);
@@ -513,7 +540,8 @@ exports.getMe = async (req, res) => {
   try {
     res.json(sanitizeUser(req.user));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[auth]', { event: 'server_error', handler: 'getMe', name: error && error.name, at: new Date().toISOString() });
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
@@ -653,7 +681,8 @@ exports.updateProfile = async (req, res) => {
       user: userObj,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[auth]', { event: 'server_error', handler: 'updateProfile', name: error && error.name, at: new Date().toISOString() });
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
@@ -694,7 +723,8 @@ exports.changePassword = async (req, res) => {
 
     return res.status(200).json({ message: 'Password saved' });
   } catch (error) {
-    return res.status(500).json({ error: error.message, message: error.message });
+    console.error('[auth]', { event: 'server_error', handler: 'changePassword', name: error && error.name, at: new Date().toISOString() });
+    return res.status(500).json({ error: 'Server error', message: 'Server error' });
   }
 };
 
@@ -708,7 +738,8 @@ exports.getDepartmentAccounts = async (req, res) => {
       .sort({ createdAt: -1 });
     res.json(accounts.map(sanitizeUser));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[auth]', { event: 'server_error', handler: 'getDepartmentAccounts', name: error && error.name, at: new Date().toISOString() });
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
@@ -784,7 +815,8 @@ exports.createDepartmentAccount = async (req, res) => {
 
     res.status(201).json({ message: 'Account created', user: userObj });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[auth]', { event: 'server_error', handler: 'createDepartmentAccount', name: error && error.name, at: new Date().toISOString() });
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
@@ -809,7 +841,8 @@ exports.updateDepartmentAccount = async (req, res) => {
 
     res.json({ message: 'Account updated', user: userObj });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[auth]', { event: 'server_error', handler: 'updateDepartmentAccount', name: error && error.name, at: new Date().toISOString() });
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
@@ -824,7 +857,8 @@ exports.deleteDepartmentAccount = async (req, res) => {
     }
     res.status(200).json({ message: 'Account deleted' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[auth]', { event: 'server_error', handler: 'deleteDepartmentAccount', name: error && error.name, at: new Date().toISOString() });
+    res.status(500).json({ error: 'Server error' });
   }
 };
 

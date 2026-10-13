@@ -146,7 +146,8 @@ exports.updateUserProfile = async (req, res) => {
       user: userObj,
     });
   } catch (error) {
-    return res.status(500).json({ error: error.message || 'Server error updating profile' });
+    console.error('[auth]', { event: 'profile_update_error', name: error && error.name, at: new Date().toISOString() });
+    return res.status(500).json({ error: 'Server error updating profile' });
   }
 };
 
