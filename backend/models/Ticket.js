@@ -140,12 +140,8 @@ const ticketSchema = new mongoose.Schema(
   }
 );
 
-// Constraint 1: MongoDB TTL index to auto-delete documents 30 days (2592000s) after archiving
+// Archived-ticket retention is handled by the daily application cleanup job.
 const reportSchema = ticketSchema;
-reportSchema.index(
-  { archivedAt: 1 },
-  { expireAfterSeconds: 2592000, partialFilterExpression: { isArchived: true } }
-);
 
 const Ticket = mongoose.model('Ticket', ticketSchema);
 
