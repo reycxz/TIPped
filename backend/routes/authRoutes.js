@@ -1,23 +1,46 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
 const { verifyToken, requireRole } = require('../middleware/auth');
+const { validateObjectId } = require('../middleware/ownership');
 
-// Rate limiter specifically for password reset and OTP routes
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts from this IP, please try again later.' }
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many registrations from this IP, please try again later.' }
+});
+
+const verifyOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many OTP verification attempts from this IP, please try again later.' }
+});
+
 const passwordResetLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 60 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
-  message: { error: "Too many password reset requests from this IP, please try again after an hour." },
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { error: 'Too many password reset requests from this IP, please try again after an hour.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 // Public routes
-router.post('/register', authController.register);
-router.post('/verify-otp', authController.verifyOtp);
-router.post('/login', authController.login);
+router.post('/register', registerLimiter, authController.register);
+router.post('/verify-otp', verifyOtpLimiter, authController.verifyOtp);
+router.post('/login', loginLimiter, authController.login);
 router.post('/google-auth', authController.googleAuth);
 router.post('/consent', authController.acceptPrivacyConsent);
 router.post('/decline', authController.declinePrivacyConsent);
@@ -33,8 +56,8 @@ router.put('/change-password', verifyToken, authController.changePassword);
 // Superadmin department account management
 router.get('/departments', verifyToken, requireRole('Superadmin'), authController.getDepartmentAccounts);
 router.post('/departments', verifyToken, requireRole('Superadmin'), authController.createDepartmentAccount);
-router.put('/departments/:id', verifyToken, requireRole('Superadmin'), authController.updateDepartmentAccount);
-router.delete('/departments/:id', verifyToken, requireRole('Superadmin'), authController.deleteDepartmentAccount);
-router.delete('/users/:id', verifyToken, requireRole('Superadmin'), authController.deleteDepartmentAccount);
+router.put('/departments/:id', verifyToken, requireRole('Superadmin'), validateObjectId, authController.updateDepartmentAccount);
+router.delete('/departments/:id', verifyToken, requireRole('Superadmin'), validateObjectId, authController.deleteDepartmentAccount);
+router.delete('/users/:id', verifyToken, requireRole('Superadmin'), validateObjectId, authController.deleteDepartmentAccount);
 
 module.exports = router;

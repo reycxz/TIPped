@@ -330,7 +330,9 @@
   top: 104px;
   width: 330px;
   max-height: calc(100% - 124px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-sizing: border-box;
   background: var(--map-pn);
   border: 1px solid var(--map-ln);
@@ -338,6 +340,12 @@
   padding: 20px;
   box-shadow: 0 18px 40px var(--map-sh);
   z-index: 10;
+}
+
+.campus-map-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .campus-map-k {
@@ -430,6 +438,7 @@
 }
 
 .campus-map-rep {
+  flex: 0 0 auto;
   margin-top: 18px;
   width: 100%;
   height: 48px;
@@ -621,7 +630,7 @@
     display: none;
   }
   .campus-map-panel.mobile-protip-open {
-    display: block;
+    display: flex;
     left: 12px;
     right: 12px;
     bottom: 12px;

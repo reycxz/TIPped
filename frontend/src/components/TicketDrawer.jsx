@@ -5,6 +5,8 @@ import { getDepartments } from '../api/adminData';
 import { getMe } from '../api/auth';
 import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
 import CampusMap from './CampusMap/CampusMap';
+import { getCampusBuildingId } from '../constants/campusData';
+import { formatTicketLocation } from '../utils/ticketLocation';
 
 const DEFAULT_DEPARTMENTS = [
   'Maintenance',
@@ -16,7 +18,7 @@ const DEFAULT_DEPARTMENTS = [
   'General',
 ];
 
-const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
+const PRIORITIES = ['Low', 'Medium', 'High'];
 const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 
 export default function TicketDrawer({
@@ -26,6 +28,7 @@ export default function TicketDrawer({
   onClose,
   onUpdateSuccess,
 }) {
+  const ticketLocation = formatTicketLocation(ticket, 'full');
   const [internalUser, setInternalUser] = useState(propUser || null);
   const [status, setStatus] = useState('Pending');
   const [priority, setPriority] = useState('Medium');
@@ -103,6 +106,7 @@ export default function TicketDrawer({
   const availableStatuses = isDepartmentUser
     ? STATUSES.filter((item) => STATUSES.indexOf(item) >= STATUSES.indexOf(ticket.status))
     : STATUSES;
+  const displayPriority = PRIORITIES.includes(priority) ? priority : 'High';
   const hasChanges = status !== (ticket.status || 'Pending')
     || priority !== (ticket.priority || 'Medium')
     || assignedDepartment !== (ticket.assignedDepartment || ticket.category || 'General')
@@ -178,7 +182,7 @@ export default function TicketDrawer({
                 {ticket.ticketId}
               </span>
               <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
-                {priority}
+                {displayPriority}
               </span>
             </div>
             <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 space-x-4">
@@ -186,9 +190,11 @@ export default function TicketDrawer({
                 <Clock className="w-3.5 h-3.5 mr-1" />
                 {new Date(ticket.createdAt).toLocaleDateString()}
               </span>
-              <span className="flex items-center">
-                <MapPin className="w-3.5 h-3.5 mr-1" />
-                {ticket.campus} - {ticket.locationInfo?.room}
+              <span className="flex min-w-0 items-start">
+                <MapPin className="mt-0.5 w-3.5 h-3.5 shrink-0 mr-1" />
+                <span className="min-w-0 break-words" title={ticketLocation.title}>
+                  {ticketLocation.primary}
+                </span>
                 <button
                   type="button"
                   onClick={() => setShowMapReadOnly(true)}
@@ -299,7 +305,7 @@ export default function TicketDrawer({
                   Priority
                 </label>
                 <select
-                  value={priority}
+                  value={displayPriority}
                   onChange={(e) => {
                     setPriority(e.target.value);
                     setError('');
@@ -433,9 +439,11 @@ export default function TicketDrawer({
         <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center">
           <div className="w-full max-w-6xl h-[85vh] flex flex-col bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
+              <div className="flex min-w-0 items-center gap-2 font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
                 <MapPin className="w-4 h-4 text-amber-500" />
-                <span>Campus Map — {ticket.campus} {ticket.locationInfo?.room || ''}</span>
+                <span className="min-w-0 break-words" title={ticketLocation.title}>
+                  Campus Map — {ticketLocation.primary}
+                </span>
               </div>
               <button
                 type="button"
@@ -449,6 +457,13 @@ export default function TicketDrawer({
             <div className="flex-1 w-full relative h-full min-h-0 overflow-hidden">
               <CampusMap
                 mode="readonly"
+                initialBuildingId={getCampusBuildingId(
+                  ticket.locationInfo?.building,
+                  ticket.campus
+                )}
+                initialBuildingName={ticket.locationInfo?.building}
+                initialCampus={ticket.campus}
+                initialFloor={ticket.locationInfo?.floor}
                 defaultLocation={
                   ticket.locationInfo?.building
                     ? `${ticket.campus || ''} - ${ticket.locationInfo.building} - Floor ${ticket.locationInfo.floor ?? ''} - ${ticket.locationInfo.room ?? ''} - ${ticket.locationInfo.landmark || ''}`

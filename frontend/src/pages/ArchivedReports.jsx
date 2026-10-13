@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
+import { formatTicketLocation } from '../utils/ticketLocation';
 
 export default function ArchivedReports({ user }) {
   const [reports, setReports] = useState([]);
@@ -260,8 +261,11 @@ export default function ArchivedReports({ user }) {
                   <div className="space-y-1 mb-2.5 text-xs text-slate-600 dark:text-slate-300">
                     <div className="flex items-center gap-1.5 font-medium">
                       <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>
-                        {report.campus} - {report.locationInfo?.building} (Room {report.locationInfo?.room})
+                      <span
+                        className="block min-w-0 truncate"
+                        title={formatTicketLocation(report, 'compact').title || 'Unassigned'}
+                      >
+                        {formatTicketLocation(report, 'compact').text || 'Unassigned'}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">

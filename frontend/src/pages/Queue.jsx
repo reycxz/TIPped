@@ -11,6 +11,7 @@ import {
   deleteCategory,
 } from '../api/adminData';
 import TicketDrawer from '../components/TicketDrawer';
+import { formatTicketLocation } from '../utils/ticketLocation';
 import { io } from 'socket.io-client';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ||
@@ -343,10 +344,14 @@ export default function Queue({ user }) {
   };
 
   // Constraint 6: Priority Color Mapping
+  const getDisplayPriority = (priority) => {
+    if (['Low', 'Medium', 'High'].includes(priority)) return priority;
+    // Temporary legacy fallback: unsupported stored priorities display as High.
+    return 'High';
+  };
+
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'Critical':
-        return 'bg-red-500';
+    switch (getDisplayPriority(priority)) {
       case 'High':
         return 'bg-orange-500';
       case 'Medium':
@@ -676,7 +681,7 @@ export default function Queue({ user }) {
                           <div className="flex items-center">
                             <span
                               className={`w-3 h-3 rounded-full inline-block mr-2 flex-shrink-0 ${getPriorityColor(ticket.priority)}`}
-                              title={`Priority: ${ticket.priority || 'Unassigned'}`}
+                              title={`Priority: ${getDisplayPriority(ticket.priority)}`}
                             />
                             <span>{ticket.ticketId || <span className="text-gray-400 italic">No ID</span>}</span>
                           </div>
@@ -694,17 +699,16 @@ export default function Queue({ user }) {
                           )}
                         </td>
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs">
-                          {ticket.campus ? (
-                            <span>
-                              {ticket.campus}
-                              {ticket.locationInfo?.building ? ` - ${ticket.locationInfo.building}` : ''}
-                              {(ticket.locationInfo?.floor !== undefined || ticket.locationInfo?.room) ? (
-                                ` (Flr ${ticket.locationInfo?.floor ?? '?'}, Rm ${ticket.locationInfo?.room ?? '?'})`
-                              ) : ''}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
+                          <span
+                            className="block truncate"
+                            title={formatTicketLocation(ticket, 'compact', {
+                              campusFiltered: campusFilter !== 'All',
+                            }).title || 'Unassigned'}
+                          >
+                            {formatTicketLocation(ticket, 'compact', {
+                              campusFiltered: campusFilter !== 'All',
+                            }).text || 'Unassigned'}
+                          </span>
                         </td>
                         <td className="px-4 py-3.5">
                           {getStatusBadge(ticket.status)}

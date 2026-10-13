@@ -3,6 +3,7 @@ const router = express.Router();
 const { updateUserProfile } = require('../controllers/userController');
 const authController = require('../controllers/authController');
 const { verifyToken, requireRole } = require('../middleware/auth');
+const { validateObjectId } = require('../middleware/ownership');
 
 // Public routes
 router.post('/google-auth', authController.googleAuth);
@@ -19,6 +20,6 @@ router.patch('/change-password', verifyToken, authController.changePassword);
 // @desc    Delete user account (Hard delete)
 // @route   DELETE /api/users/:id or /api/admin/users/:id
 // @access  Private (Superadmin only)
-router.delete('/:id', verifyToken, requireRole('Superadmin'), authController.deleteDepartmentAccount);
+router.delete('/:id', verifyToken, requireRole('Superadmin'), validateObjectId, authController.deleteDepartmentAccount);
 
 module.exports = router;

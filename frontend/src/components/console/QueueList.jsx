@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import useDepartmentColors from '../../hooks/useDepartmentColors';
 import StatusBadge from './StatusBadge';
 import TicketDetailPanel from './TicketDetailPanel';
+import { formatTicketLocation } from '../../utils/ticketLocation';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
@@ -37,17 +38,12 @@ function CampusTag({ ticket }) {
   );
 }
 
-function LocationText({ ticket, clamp = false }) {
-  const location = ticket.locationInfo?.landmark || ticket.locationInfo?.building || 'Unassigned';
-  const floor = ticket.locationInfo?.floor;
-  const hasFloorReference = /\b(floor|flr)\.?\s*\d+/i.test(location);
-  const text = floor !== undefined && floor !== null && floor !== '' && !hasFloorReference
-    ? `${location} · Flr ${floor}`
-    : location;
+function LocationText({ ticket, campusFiltered = false }) {
+  const location = formatTicketLocation(ticket, 'compact', { campusFiltered });
 
   return (
-    <span className={`${clamp ? 'line-clamp-2' : 'truncate'} block`} title={text}>
-      {text}
+    <span className="block truncate" title={location.title || 'Unassigned'}>
+      {location.text || 'Unassigned'}
     </span>
   );
 }
@@ -456,7 +452,7 @@ export default function QueueList({
                       </div>
                     )}
                     <div role="cell" className="flex min-w-0 items-center text-sm text-slate-600 dark:text-slate-300">
-                      <LocationText ticket={ticket} clamp />
+                      <LocationText ticket={ticket} campusFiltered={campusFilter !== 'All'} />
                     </div>
                     <div role="cell" className="flex items-center whitespace-nowrap">
                       <StatusBadge status={ticket.status} />
@@ -535,8 +531,8 @@ export default function QueueList({
                       <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
                     </button>
                   </div>
-                  <div className="truncate text-sm text-slate-500 dark:text-slate-400">
-                    <LocationText ticket={ticket} />
+                  <div className="min-w-0 text-sm text-slate-500 dark:text-slate-400">
+                    <LocationText ticket={ticket} campusFiltered={campusFilter !== 'All'} />
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <StatusBadge status={ticket.status} />

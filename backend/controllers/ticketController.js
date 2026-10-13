@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const Ticket = require('../models/Ticket');
 const Report = require('../models/Report');
 const Department = require('../models/Department');
@@ -8,6 +7,8 @@ const { generateTicketId } = require('../utils/ticketIdGenerator');
 const { sendStatusUpdateEmail, sendGuestConfirmationEmail } = require('../utils/emailService');
 const { streamUpload, uploadDirect } = require('../config/cloudinary');
 const { emitNewTicket, emitToUser } = require('../socket');
+const { applyTicketScope } = require('../middleware/ownership');
+const { deleteTicketImages } = require('../utils/cloudinaryCleanup');
 
 // Helper to escape special regular expression characters preventing ReDoS and query crashes
 const escapeRegex = (str) => {
@@ -27,6 +28,7 @@ const DEFAULT_CATEGORIES = [
 const CASAL_BUILDINGS = [
   "Founder's (F)",
   'Building 2 (C)',
+  'Building 3',
   'PC 5',
   'PC 12',
   'PE Center',
@@ -42,6 +44,24 @@ const sanitizeTicket = (ticket) => {
   delete safeTicket.submittedBy;
   delete safeTicket.reportedBy;
   delete safeTicket.guestEmail;
+  return safeTicket;
+};
+
+const sanitizeReporterTicket = (ticket, role) => {
+  const safeTicket = sanitizeTicket(ticket);
+  const normalizedRole = typeof role === 'string' ? role.toLowerCase() : '';
+
+  if (['admin', 'superadmin', 'department'].includes(normalizedRole)) {
+    return safeTicket;
+  }
+
+  delete safeTicket.priority;
+  if (Array.isArray(safeTicket.auditTrail)) {
+    safeTicket.auditTrail = safeTicket.auditTrail.filter(
+      (entry) => typeof entry?.action !== 'string' || !entry.action.endsWith('Priority Update')
+    );
+  }
+
   return safeTicket;
 };
 
@@ -92,21 +112,10 @@ const extractImageUrls = async (req) => {
 // @access  Private
 exports.getMetrics = async (req, res) => {
   try {
-    const role = (req.user?.role || '').toLowerCase();
     const query = {
       isArchived: { $ne: true }
     };
-    
-    // Role-based metric scoping (case-insensitive role matching)
-    if (role === 'user') {
-      query.$or = [{ submittedBy: req.user._id }, { reportedBy: req.user._id }];
-    } else if (role === 'department' || role === 'department staff') {
-      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      req.user.assignedCategories = assigned;
-      query.issueCategory = { $in: req.user.assignedCategories };
-    }
+    applyTicketScope(query, req.user);
 
     const [pending, inProgress, resolved] = await Promise.all([
       Ticket.countDocuments({ ...query, status: 'Pending' }),
@@ -137,6 +146,7 @@ exports.getMyTickets = async (req, res) => {
         { isArchived: { $ne: true } }
       ]
     };
+    applyTicketScope(query, req.user);
 
     if (req.query.status && req.query.status !== 'All') {
       query.$and.push({ status: req.query.status });
@@ -170,7 +180,7 @@ exports.getMyTickets = async (req, res) => {
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
-    res.json(tickets.map(sanitizeTicket));
+    res.json(tickets.map((ticket) => sanitizeReporterTicket(ticket, req.user?.role)));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -265,7 +275,7 @@ exports.createTicket = async (req, res) => {
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket: safeTicket
+      ticket: sanitizeReporterTicket(ticket, req.user?.role)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -384,8 +394,13 @@ exports.createGuestTicket = async (req, res) => {
       sendGuestConfirmationEmail({
         to: guestEmail.trim().toLowerCase(),
         category: selectedCategory,
-        campus,
-        building,
+        location: {
+          campus,
+          building,
+          floor: ticket.locationInfo?.floor,
+          room: ticket.locationInfo?.room,
+          landmark: ticket.locationInfo?.landmark,
+        },
       }).catch(() =>
         console.error('[Nodemailer Error] Guest confirmation failed')
       );
@@ -393,7 +408,7 @@ exports.createGuestTicket = async (req, res) => {
 
     res.status(201).json({
       message: 'Report submitted',
-      ticket: safeTicket
+      ticket: sanitizeReporterTicket(ticket)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -408,15 +423,6 @@ exports.getTickets = async (req, res) => {
     const query = {
       isArchived: { $ne: true }
     };
-
-    const role = (req.user?.role || '').toLowerCase();
-    if (role === 'department' || role === 'department staff') {
-      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      req.user.assignedCategories = assigned;
-      query.issueCategory = { $in: req.user.assignedCategories };
-    }
 
     if (req.query.campus && req.query.campus !== 'All') {
       query.campus = req.query.campus;
@@ -453,9 +459,8 @@ exports.getTickets = async (req, res) => {
       });
     }
 
-    if (andConditions.length > 0) {
-      query.$and = andConditions;
-    }
+    if (andConditions.length > 0) query.$and = andConditions;
+    applyTicketScope(query, req.user);
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 });
     res.json(tickets.map(sanitizeTicket));
@@ -473,24 +478,10 @@ exports.updateTicket = async (req, res) => {
   try {
     const { status, priority, category, adminNote } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid ticket ID format' });
-    }
-
-    const ticket = await Ticket.findById(req.params.id);
-    if (!ticket) {
-      return res.status(404).json({ error: 'Ticket not found' });
-    }
+    const ticket = req.ticket;
 
     const role = (req.user?.role || '').toLowerCase();
-    if (role === 'department') {
-      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      if (!userCats.includes(ticket.issueCategory)) {
-        return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
-      }
-
+    if (role === 'department' || role === 'department staff') {
       if (ticket.status === 'Resolved') {
         return res.status(403).json({ error: 'Resolved tickets can only be reopened by an admin.' });
       }
@@ -577,7 +568,9 @@ exports.updateTicket = async (req, res) => {
     await ticket.save();
 
     if (statusChanged) {
-      const updatedTicket = await Ticket.findById(ticket._id)
+      const updatedTicket = await Ticket.findOne(
+        applyTicketScope({ _id: ticket._id }, req.user)
+      )
         .populate('reportedBy', '_id role')
         .populate('submittedBy', '_id role')
         .lean();
@@ -586,7 +579,7 @@ exports.updateTicket = async (req, res) => {
 
       if (reporterId && (reporter.role || '').toLowerCase() === 'user') {
         const reporterRoom = reporterId.toString();
-        emitToUser(reporterRoom, 'ticketUpdated', sanitizeTicket(updatedTicket));
+        emitToUser(reporterRoom, 'ticketUpdated', sanitizeReporterTicket(updatedTicket, reporter.role));
       }
     }
 
@@ -614,6 +607,13 @@ exports.updateTicket = async (req, res) => {
           timestamp: formattedTimestamp,
           campus: ticket.campus,
           room: ticket.locationInfo?.room || '',
+          location: {
+            campus: ticket.campus,
+            building: ticket.locationInfo?.building,
+            floor: ticket.locationInfo?.floor,
+            room: ticket.locationInfo?.room,
+            landmark: ticket.locationInfo?.landmark,
+          },
           category: ticket.issueCategory || ticket.assignedDepartment || ticket.category || 'General',
           newStatus: ticket.status,
           adminNote: noteText || 'None',
@@ -677,16 +677,7 @@ exports.getAnalytics = async (req, res) => {
       }
     }
 
-    // Role scoping for Department accounts
-    if (role === 'department') {
-      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      match.$or = [
-        { issueCategory: { $in: assigned } },
-        { category: { $in: assigned } }
-      ];
-    }
+    applyTicketScope(match, req.user);
 
     // Constraint 1: Fetch real account counts directly from User collection
     const [deptCountLower, deptCountUpper, userCountLower, userCountUpper] = await Promise.all([
@@ -835,24 +826,7 @@ exports.archiveReport = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid report ID format' });
-    }
-
-    const ticket = await Ticket.findById(req.params.id);
-    if (!ticket) {
-      return res.status(404).json({ error: 'Report not found' });
-    }
-
-    // Role-based department scoping
-    if (role === 'department') {
-      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      if (!userCats.includes(ticket.issueCategory)) {
-        return res.status(403).json({ error: 'Forbidden: Cannot archive reports outside your assigned department' });
-      }
-    }
+    const ticket = req.ticket;
 
     ticket.isArchived = true;
     ticket.archivedAt = new Date();
@@ -887,23 +861,7 @@ exports.restoreReport = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid report ID format' });
-    }
-
-    const ticket = await Ticket.findById(req.params.id);
-    if (!ticket) {
-      return res.status(404).json({ error: 'Report not found' });
-    }
-
-    if (role === 'department') {
-      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      if (!userCats.includes(ticket.issueCategory)) {
-        return res.status(403).json({ error: 'Forbidden: Cannot restore reports outside your assigned department' });
-      }
-    }
+    const ticket = req.ticket;
 
     ticket.isArchived = false;
     ticket.archivedAt = null;
@@ -942,13 +900,7 @@ exports.getArchivedReports = async (req, res) => {
       isArchived: true
     };
 
-    // Scoping for department role
-    if (role === 'department') {
-      const assigned = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      query.issueCategory = { $in: assigned };
-    }
+    applyTicketScope(query, req.user);
 
     if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim()) {
       const regex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
@@ -981,25 +933,14 @@ exports.deleteReportForever = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid report ID format' });
-    }
-
-    const ticket = await Ticket.findById(req.params.id);
-    if (!ticket) {
+    const deletedTicket = await Ticket.findOneAndDelete(
+      applyTicketScope({ _id: req.params.id }, req.user)
+    );
+    if (!deletedTicket) {
       return res.status(404).json({ error: 'Report not found' });
     }
 
-    if (role === 'department') {
-      const userCats = Array.isArray(req.user.assignedCategories) && req.user.assignedCategories.length > 0
-        ? req.user.assignedCategories
-        : (req.user.departmentCategory ? [req.user.departmentCategory] : []);
-      if (!userCats.includes(ticket.issueCategory)) {
-        return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
-      }
-    }
-
-    await Ticket.findByIdAndDelete(req.params.id);
+    await deleteTicketImages(deletedTicket);
 
     res.json({
       message: 'Report permanently deleted',

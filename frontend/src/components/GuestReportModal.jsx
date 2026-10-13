@@ -3,6 +3,7 @@ import axios from 'axios';
 import { createGuestTicket } from '../api/tickets';
 import { Upload, X, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
 import CampusMap from './CampusMap/CampusMap';
+import { CAMPUS_BUILDINGS, getCampusBuildingFloors } from '../constants/campusData';
 
 const arleguiRooms = {
   '1': ['A-101', 'A-102', 'A-103', 'A-104', 'A-105', 'A-106', 'A-107', 'A-108', 'A-109', 'A-110'],
@@ -12,32 +13,6 @@ const arleguiRooms = {
   '6': ['A-601', 'A-602', 'A-603', 'A-604', 'A-605'],
   '7': ['A-701', 'A-702', 'A-703', 'A-704', 'A-705']
 };
-
-const campusConfig = {
-  Arlegui: {
-    "Arlegui (A)": { prefix: "A", maxFloor: 6 }
-  },
-  Casal: {
-    "Founder's (F)": { prefix: "F", maxFloor: 6 },
-    "Building 2 (C)": { prefix: "C", maxFloor: 3 },
-    "PC 5": { prefix: "PC5", maxFloor: 1 },
-    "PC 12": { prefix: "PC12", maxFloor: 2 },
-    "PE Center": { prefix: "PE", maxFloor: 1 },
-    "PE Center Annex": { prefix: "PEA", maxFloor: 1 },
-    "Student Hub": { prefix: "HUB", maxFloor: 1 },
-    "Study Area / Canteen": { prefix: "OA", maxFloor: 1 },
-    "Congregating Area": { prefix: "OA", maxFloor: 1 },
-    "Casal Garden": { prefix: "OA", maxFloor: 1 }
-  }
-};
-
-const NON_ROOM_BUILDINGS = new Set([
-  'PE Center Annex',
-  'Student Hub',
-  'Study Area / Canteen',
-  'Congregating Area',
-  'Casal Garden'
-]);
 
 export default function GuestReportModal({
   isOpen = true,
@@ -49,7 +24,8 @@ export default function GuestReportModal({
 }) {
   // Form states
   const [campus, setCampus] = useState('Arlegui');
-  const [building, setBuilding] = useState('Arlegui (A)');
+  const [buildingId, setBuildingId] = useState('A');
+  const [unmatchedMapBuildingId, setUnmatchedMapBuildingId] = useState('');
   const [floor, setFloor] = useState('1');
   const [room, setRoom] = useState('');
   const [isRoomSpecific, setIsRoomSpecific] = useState(true);
@@ -59,74 +35,45 @@ export default function GuestReportModal({
   const applyLocationString = (locStr) => {
     if (!locStr) return;
     if (typeof locStr === 'object') {
-      const { building: selectedBuilding, specificArea, campus: selectedCampus, floor: selectedFloor } = locStr;
+      const {
+        buildingId: selectedBuildingId,
+        building: selectedBuildingName,
+        specificArea,
+        campus: selectedCampus,
+        floor: selectedFloor
+      } = locStr;
       const resolvedCampus = selectedCampus || 'Casal';
       const resolvedFloor = String(selectedFloor || '1');
+      const selectedBuilding = CAMPUS_BUILDINGS.find(
+        (option) =>
+          option.id === selectedBuildingId &&
+          option.campus === resolvedCampus &&
+          option.selectable
+      );
       setCampus(resolvedCampus);
-      setBuilding(selectedBuilding);
+      setBuildingId(selectedBuilding?.id || '');
+      setUnmatchedMapBuildingId(selectedBuilding ? '' : selectedBuildingId || '');
       setFloor(resolvedFloor);
       setRoom('');
       setIsRoomSpecific(false);
-      setLandmark(`${specificArea || selectedBuilding}, Floor ${resolvedFloor}, ${resolvedCampus} Campus`);
+      const landmarkName = specificArea || selectedBuilding?.name || selectedBuildingName;
+      setLandmark(landmarkName ? `${landmarkName}, Floor ${resolvedFloor}, ${resolvedCampus} Campus` : '');
       return;
     }
     setLandmark(locStr);
 
-    if (locStr.includes('Casal Campus')) {
-      setCampus('Casal');
-    } else if (locStr.includes('Arlegui Campus')) {
-      setCampus('Arlegui');
-    }
-
-    if (locStr.includes("Founder's Building") || locStr.includes("Founder's")) {
-      setBuilding("Founder's (F)");
-    } else if (locStr.includes("Building 2")) {
-      setBuilding("Building 2 (C)");
-    } else if (locStr.includes("PC 5") || locStr.includes("PC-5")) {
-      setBuilding("PC 5");
-    } else if (locStr.includes("PC 12") || locStr.includes("PC-12")) {
-      setBuilding("PC 12");
-    } else if (locStr.includes("PE Center Annex")) {
-      setBuilding("PE Center Annex");
-    } else if (locStr.includes("Clinic") || locStr.includes("CES") || locStr.includes("Security")) {
-      setBuilding("PE Center");
-    } else if (locStr.includes("PE Center")) {
-      setBuilding("PE Center");
-    } else if (locStr.includes("Student Hub")) {
-      setBuilding("Student Hub");
-    } else if (locStr.includes("Study Area / Canteen")) {
-      setBuilding("Study Area / Canteen");
-    } else if (locStr.includes("Congregating Area")) {
-      setBuilding("Congregating Area");
-    } else if (locStr.includes("Casal Garden")) {
-      setBuilding("Casal Garden");
-    } else if (locStr.includes("Arlegui")) {
-      setBuilding("Arlegui (A)");
-    }
-
-    const matchedBuilding = Object.keys(campusConfig).flatMap((campusName) =>
-      Object.keys(campusConfig[campusName])
-    ).sort((a, b) => b.length - a.length)
-      .find((buildingName) => locStr.includes(buildingName));
-    const selectedBuilding = matchedBuilding ||
-      (locStr.includes("Clinic") || locStr.includes("CES") || locStr.includes("Security") ? "PE Center" :
-        locStr.includes("Founder's") ? "Founder's (F)" :
-          locStr.includes("Building 2") ? "Building 2 (C)" :
-            locStr.includes("PC 5") || locStr.includes("PC-5") ? "PC 5" :
-              locStr.includes("PC 12") || locStr.includes("PC-12") ? "PC 12" :
-                locStr.includes("Arlegui") ? "Arlegui (A)" : null);
-    if (selectedBuilding && NON_ROOM_BUILDINGS.has(selectedBuilding)) {
-      setFloor('1');
-      setRoom('');
-      setIsRoomSpecific(false);
-    }
-
+    const resolvedCampus = locStr.includes('Casal Campus')
+      ? 'Casal'
+      : locStr.includes('Arlegui Campus')
+        ? 'Arlegui'
+        : campus;
     const floorMatch = locStr.match(/Floor\s+(\d+)/i);
-    if (floorMatch && !NON_ROOM_BUILDINGS.has(selectedBuilding)) {
-      setFloor(floorMatch[1]);
-      setIsRoomSpecific(false);
-      setRoom('');
-    }
+    setCampus(resolvedCampus);
+    setBuildingId('');
+    setUnmatchedMapBuildingId('');
+    if (floorMatch) setFloor(floorMatch[1]);
+    setRoom('');
+    setIsRoomSpecific(false);
   };
 
   useEffect(() => {
@@ -134,6 +81,21 @@ export default function GuestReportModal({
       applyLocationString(initialLocation);
     }
   }, [initialLocation]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousDocumentOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousDocumentOverflow;
+    };
+  }, [isOpen]);
+
   // Constraint 2: Initialize category as empty string
   const [category, setCategory] = useState('');
   const [categoryError, setCategoryError] = useState('');
@@ -188,10 +150,12 @@ export default function GuestReportModal({
   const [floorError, setFloorError] = useState('');
   const [generalError, setGeneralError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submissionAction, setSubmissionAction] = useState('');
 
   // Email capture and success modal states
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
+  const [emailSubmissionError, setEmailSubmissionError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Constraint 2: Fetch categories on mount without defaulting category to first item
@@ -218,47 +182,60 @@ export default function GuestReportModal({
   }, [floor, campus]);
 
   // Floor options dynamically generated from 1 to maxFloor
-  const availableCampuses = Object.keys(campusConfig);
-  const availableBuildings = Object.keys(campusConfig[campus] || {});
-  const currentBuildingConfig = campusConfig[campus]?.[building];
-  const maxFloor = currentBuildingConfig?.maxFloor || 1;
-  const availableFloors = Array.from({ length: maxFloor }, (_, i) => String(i + 1));
+  const availableCampuses = [...new Set(CAMPUS_BUILDINGS.map((option) => option.campus))];
+  const availableBuildings = CAMPUS_BUILDINGS.filter(
+    (option) => option.campus === campus && option.selectable
+  );
+  const currentBuildingConfig =
+    CAMPUS_BUILDINGS.find((option) => option.id === buildingId && option.campus === campus) ||
+    CAMPUS_BUILDINGS.find((option) => option.id === unmatchedMapBuildingId && option.campus === campus);
+  const buildingFloors = getCampusBuildingFloors(currentBuildingConfig?.id);
+  const availableFloors = (buildingFloors.length ? buildingFloors : [1]).map(String);
 
   const handleCampusChange = (e) => {
     const selectedCampus = e.target.value;
     setCampus(selectedCampus);
-    const buildings = Object.keys(campusConfig[selectedCampus] || {});
-    const newBuilding = buildings[0] || '';
-    setBuilding(newBuilding);
+    const newBuilding = CAMPUS_BUILDINGS.find(
+      (option) => option.campus === selectedCampus && option.selectable
+    );
+    setBuildingId(newBuilding?.id || '');
+    setUnmatchedMapBuildingId('');
 
-    const bConfig = campusConfig[selectedCampus]?.[newBuilding];
-    const newMaxFloor = bConfig?.maxFloor || 1;
-    if (Number(floor) > newMaxFloor) {
-      setFloor('1');
-      if (room) validateRoomFloor('1', room);
-    } else if (room) {
-      validateRoomFloor(floor, room);
-    }
+    const newMaxFloor = Math.max(1, ...getCampusBuildingFloors(newBuilding?.id));
+    const newFloor =
+      !newBuilding?.roomSpecific || Number(floor) > newMaxFloor ? '1' : floor;
+    setFloor(newFloor);
+    if (room) validateRoomFloor(newFloor, room);
+    setLandmark(
+      newBuilding
+        ? `${newBuilding.name}, Floor ${newFloor}, ${selectedCampus} Campus`
+        : ''
+    );
   };
 
   const handleBuildingChange = (e) => {
-    const newBuilding = e.target.value;
-    setBuilding(newBuilding);
-    if (NON_ROOM_BUILDINGS.has(newBuilding)) {
+    const newBuilding = CAMPUS_BUILDINGS.find(
+      (option) => option.id === e.target.value && option.campus === campus && option.selectable
+    );
+    setBuildingId(newBuilding?.id || '');
+    setUnmatchedMapBuildingId('');
+    if (!newBuilding) {
+      setLandmark('');
+      return;
+    }
+    if (!newBuilding.roomSpecific) {
       setFloor('1');
       setRoom('');
       setIsRoomSpecific(false);
       setFloorError('');
+      setLandmark(`${newBuilding.name}, Floor 1, ${campus} Campus`);
       return;
     }
-    const bConfig = campusConfig[campus]?.[newBuilding];
-    const newMaxFloor = bConfig?.maxFloor || 1;
-    if (Number(floor) > newMaxFloor) {
-      setFloor('1');
-      if (room) validateRoomFloor('1', room);
-    } else if (room) {
-      validateRoomFloor(floor, room);
-    }
+    const newMaxFloor = Math.max(1, ...getCampusBuildingFloors(newBuilding.id));
+    const newFloor = Number(floor) > newMaxFloor ? '1' : floor;
+    setFloor(newFloor);
+    if (room) validateRoomFloor(newFloor, room);
+    setLandmark(`${newBuilding.name}, Floor ${newFloor}, ${campus} Campus`);
   };
 
   const validateRoomFloor = (selectedFloor, roomInput) => {
@@ -284,6 +261,9 @@ export default function GuestReportModal({
   const handleFloorChange = (e) => {
     const val = e.target.value;
     setFloor(val);
+    if (currentBuildingConfig) {
+      setLandmark(`${currentBuildingConfig.name}, Floor ${val}, ${campus} Campus`);
+    }
     if (room) {
       validateRoomFloor(val, room);
     }
@@ -332,7 +312,8 @@ export default function GuestReportModal({
   // Constraint 2: Reset category to empty string on form reset
   const resetForm = () => {
     setCampus('Arlegui');
-    setBuilding('Arlegui (A)');
+    setBuildingId('A');
+    setUnmatchedMapBuildingId('');
     setFloor('1');
     setRoom('');
     setIsRoomSpecific(true);
@@ -351,7 +332,7 @@ export default function GuestReportModal({
   const buildFormData = (optionalEmail = '') => {
     const formData = new FormData();
     formData.append('campus', campus);
-    formData.append('building', building);
+    formData.append('building', currentBuildingConfig?.selectable ? currentBuildingConfig.name : '');
     formData.append('floor', floor);
     const finalRoom = isRoomSpecific ? room.trim() : `${floor} - Common Area`;
     formData.append('room', finalRoom);
@@ -414,27 +395,37 @@ export default function GuestReportModal({
     }
 
     // Intercept with optional email capture modal
+    setEmailSubmissionError('');
     setShowEmailModal(true);
   };
 
-  const executeSubmission = async (emailToSubmit = '') => {
+  const executeSubmission = async (emailToSubmit = '', action = 'submit') => {
     // Constraint 3: Ensure category is not empty before submitting
     if (!category || !category.trim()) {
       setCategoryError('Please choose a category');
       return;
     }
 
+    const normalizedEmail = emailToSubmit.trim();
+    if (normalizedEmail && !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setEmailSubmissionError('Enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
-    setGeneralError('');
+    setSubmissionAction(action);
+    setEmailSubmissionError('');
 
     try {
-      const formData = buildFormData(emailToSubmit);
+      const formData = buildFormData(normalizedEmail);
       await createGuestTicket(formData);
+      setGuestEmail(normalizedEmail);
       setIsSubmitted(true);
     } catch (err) {
-      setGeneralError(err.response?.data?.error || 'Submission failed');
+      setEmailSubmissionError(err.response?.data?.error || 'Submission failed');
     } finally {
       setLoading(false);
+      setSubmissionAction('');
     }
   };
 
@@ -442,29 +433,31 @@ export default function GuestReportModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md p-4 flex items-center justify-center">
-      <div className="w-full max-w-2xl relative my-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 sm:p-8 shadow-2xl transition-colors duration-200">
+      <div className="fixed inset-0 z-50 flex items-end bg-black/80 backdrop-blur-md sm:items-center sm:justify-center sm:p-4">
+      <div className="relative flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border border-slate-200 bg-white shadow-2xl transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800 sm:max-h-[90dvh] sm:rounded-xl">
         {/* Header title with subtle 'X' close button */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex shrink-0 items-center justify-between px-6 pt-5 pb-4 sm:px-8 sm:pt-7">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Submit Tip</h1>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/60 dark:hover:text-white cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {generalError && (
-          <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 flex items-center space-x-2 text-xs">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{generalError}</span>
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 sm:px-8">
+          <div className="space-y-4">
+          {generalError && (
+            <div className="flex items-center space-x-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-500 dark:text-red-400">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{generalError}</span>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Campus & Building */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -474,7 +467,7 @@ export default function GuestReportModal({
               <select
                 value={campus}
                 onChange={handleCampusChange}
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
+                className="min-h-11 w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
                 {availableCampuses.map((camp) => (
                   <option key={camp} value={camp}>
@@ -489,13 +482,15 @@ export default function GuestReportModal({
                 Building
               </label>
               <select
-                value={building}
+                value={buildingId}
+                required
                 onChange={handleBuildingChange}
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
+                className="min-h-11 w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
-                {availableBuildings.map((bld) => (
-                  <option key={bld} value={bld}>
-                    {bld}
+                <option value="" />
+                {availableBuildings.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
                   </option>
                 ))}
               </select>
@@ -511,7 +506,7 @@ export default function GuestReportModal({
               <select
                 value={floor}
                 onChange={handleFloorChange}
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
+                className="min-h-11 w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary transition-colors"
               >
                 {availableFloors.map((num) => (
                   <option key={num} value={num}>
@@ -531,7 +526,7 @@ export default function GuestReportModal({
                   disabled={!isRoomSpecific}
                   value={room}
                   onChange={(e) => setRoom(e.target.value)}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none transition-colors ${
+                  className={`min-h-11 w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none transition-colors ${
                     !isRoomSpecific
                       ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                       : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-primary'
@@ -550,7 +545,7 @@ export default function GuestReportModal({
                   value={room}
                   onChange={handleRoomChange}
                   placeholder="Room"
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors ${
+                  className={`min-h-11 w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors ${
                     !isRoomSpecific
                       ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                       : floorError
@@ -566,7 +561,7 @@ export default function GuestReportModal({
                 </div>
               )}
 
-              <label className="flex items-center space-x-2 mt-2 cursor-pointer select-none">
+              <label className="flex min-h-11 items-center space-x-2 mt-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={!isRoomSpecific}
@@ -603,14 +598,14 @@ export default function GuestReportModal({
                       ? "Describe the area (e.g., Near stairs, Main Lobby)"
                       : "Landmark"
                   }
-                  className="w-full pl-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                  className="min-h-11 w-full pl-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowMapPicker(true)}
                   aria-label="Select location on campus map"
                   title="Select location on campus map"
-                  className="absolute right-2 p-1.5 text-slate-400 hover:text-amber-500 transition-colors cursor-pointer"
+                  className="absolute right-1 flex min-h-11 min-w-11 items-center justify-center text-slate-400 hover:text-amber-500 transition-colors cursor-pointer"
                 >
                   <MapPin className="w-4 h-4" />
                 </button>
@@ -627,7 +622,7 @@ export default function GuestReportModal({
                 value={category}
                 onChange={handleCategoryChange}
                 required
-                className={`w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none transition-colors ${
+                className={`min-h-11 w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none transition-colors ${
                   categoryError
                     ? 'border-red-500 focus:border-red-500'
                     : 'border-slate-200 dark:border-slate-700 focus:border-primary'
@@ -663,7 +658,7 @@ export default function GuestReportModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Description"
-              className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+              className="min-h-11 w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
             />
           </div>
 
@@ -688,7 +683,7 @@ export default function GuestReportModal({
                       type="button"
                       onClick={() => handleRemovePhoto(index)}
                       aria-label="Remove"
-                      className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white hover:bg-red-500 transition-colors"
+                      className="absolute top-1 right-1 flex min-h-11 min-w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-red-500 transition-colors"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -714,20 +709,23 @@ export default function GuestReportModal({
             )}
           </div>
 
+          </div>
+          </div>
+
           {/* Action buttons */}
-          <div className="flex items-center gap-3 mt-6">
+          <div className="flex shrink-0 items-center gap-3 border-t border-slate-200 px-6 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] dark:border-slate-700 sm:px-8">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="py-3 px-5 bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-semibold rounded-lg text-sm transition-colors cursor-pointer"
+              className="min-h-11 py-3 px-5 bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-semibold rounded-lg text-sm transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !!floorError}
-              className="flex-1 py-3 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
+              className="min-h-11 flex-1 py-3 px-4 bg-primary hover:bg-amber-500 disabled:opacity-50 text-slate-900 font-semibold rounded-lg text-sm transition-colors cursor-pointer"
             >
               {loading ? 'Submitting...' : 'Submit'}
             </button>
@@ -770,7 +768,10 @@ export default function GuestReportModal({
                 <>
                   <button
                     type="button"
-                    onClick={() => setShowEmailModal(false)}
+                    onClick={() => {
+                      setEmailSubmissionError('');
+                      setShowEmailModal(false);
+                    }}
                     aria-label="Close"
                     className="absolute top-4 right-4 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                   >
@@ -787,19 +788,27 @@ export default function GuestReportModal({
                       <input
                         type="email"
                         value={guestEmail}
-                        onChange={(e) => setGuestEmail(e.target.value)}
+                        onChange={(e) => {
+                          setGuestEmail(e.target.value);
+                          setEmailSubmissionError('');
+                        }}
                         placeholder="Email"
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary"
                       />
                     </div>
+                    {emailSubmissionError && (
+                      <p role="alert" className="text-xs text-red-500 dark:text-red-400">
+                        {emailSubmissionError}
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <button
                         type="button"
                         disabled={loading}
-                        onClick={() => executeSubmission('')}
+                        onClick={() => executeSubmission('', 'skip')}
                         className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs transition-colors"
                       >
-                        Skip &amp; Submit
+                        {loading && submissionAction === 'skip' ? 'Submitting...' : 'Skip & Submit'}
                       </button>
                       <button
                         type="button"
@@ -807,7 +816,7 @@ export default function GuestReportModal({
                         onClick={() => executeSubmission(guestEmail)}
                         className="flex-1 py-2.5 px-3 bg-primary hover:bg-amber-500 text-slate-900 font-semibold rounded-lg text-xs transition-colors"
                       >
-                        {loading ? 'Submitting...' : 'Submit'}
+                        {loading && submissionAction === 'submit' ? 'Submitting...' : 'Submit'}
                       </button>
                     </div>
                   </div>

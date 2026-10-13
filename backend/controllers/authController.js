@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const User = require('../models/User');
 const Department = require('../models/Department');
 const Category = require('../models/Category');
@@ -10,6 +11,62 @@ const {
 } = require('../utils/departmentAccountSync');
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const sanitizeUser = (user) => {
+  if (!user) return null;
+  const userObj = user.toObject ? user.toObject() : { ...user };
+  delete userObj.password;
+  delete userObj.otp;
+  delete userObj.otpExpires;
+  delete userObj.__v;
+  return userObj;
+};
+
+const otpAttemptStore = new Map();
+const OTP_ATTEMPT_LIMIT = 5;
+const OTP_ATTEMPT_WINDOW = 15 * 60 * 1000;
+const OTP_ATTEMPT_STORE_MAX = 5000;
+
+const getOtpAttemptState = (email) => {
+  const key = String(email || '').trim().toLowerCase();
+  const state = otpAttemptStore.get(key);
+
+  if (!state) {
+    return { count: 0, firstAttemptAt: Date.now() };
+  }
+
+  if (Date.now() - state.firstAttemptAt > OTP_ATTEMPT_WINDOW) {
+    otpAttemptStore.delete(key);
+    return { count: 0, firstAttemptAt: Date.now() };
+  }
+
+  return state;
+};
+
+const trackOtpFailure = (email) => {
+  const key = String(email || '').trim().toLowerCase();
+  const state = getOtpAttemptState(key);
+  const nextCount = state.count + 1;
+  const now = Date.now();
+
+  for (const [storedKey, attempt] of otpAttemptStore) {
+    if (now - attempt.firstAttemptAt > OTP_ATTEMPT_WINDOW) {
+      otpAttemptStore.delete(storedKey);
+    }
+  }
+
+  if (!otpAttemptStore.has(key) && otpAttemptStore.size >= OTP_ATTEMPT_STORE_MAX) {
+    return false;
+  }
+
+  otpAttemptStore.set(key, { count: nextCount, firstAttemptAt: state.firstAttemptAt });
+  return nextCount >= OTP_ATTEMPT_LIMIT;
+};
+
+const clearOtpFailureState = (email) => {
+  const key = String(email || '').trim().toLowerCase();
+  otpAttemptStore.delete(key);
+};
 
 const createEmailTransporter = () => {
   return nodemailer.createTransport({
@@ -26,8 +83,7 @@ const STAFF_ROLES = new Set(['admin', 'superadmin', 'department']);
 const isStaffRole = (role) => STAFF_ROLES.has((role || '').toLowerCase());
 
 const sendAuthResponse = (res, user, statusCode = 200) => {
-  const userObj = user.toObject();
-  delete userObj.password;
+  const userObj = sanitizeUser(user);
 
   if (!isStaffRole(user.role) && !user.hasAcceptedPrivacyPolicy) {
     const consentToken = jwt.sign(
@@ -62,7 +118,7 @@ const sendAuthResponse = (res, user, statusCode = 200) => {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { firstName, lastName, email, program, password, departmentCategory } = req.body;
+    const { firstName, lastName, email, program, password } = req.body;
 
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ error: 'Please provide all required fields' });
@@ -87,7 +143,7 @@ exports.register = async (req, res, next) => {
     }
 
     // Generate secure 6-digit OTP with 10 minute expiration
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString().padStart(6, '0');
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     // Explicitly enforce role: 'user' to prevent privilege escalation via mass assignment
@@ -98,7 +154,6 @@ exports.register = async (req, res, next) => {
       program: program ? program.trim() : 'Not Specified',
       password,
       role: 'user',
-      departmentCategory: departmentCategory ? departmentCategory.trim() : null,
       otp,
       otpExpires,
       isVerified: false
@@ -149,19 +204,33 @@ exports.verifyOtp = async (req, res, next) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const blockedState = getOtpAttemptState(normalizedEmail);
+    if (blockedState.count >= OTP_ATTEMPT_LIMIT) {
+      return res.status(429).json({ error: 'Too many invalid OTP attempts. Please try again later.' });
+    }
+
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     if (!user.otp || user.otp !== otp.trim()) {
+      const exhausted = trackOtpFailure(normalizedEmail);
+      if (exhausted) {
+        return res.status(429).json({ error: 'Too many invalid OTP attempts. Please try again later.' });
+      }
       return res.status(400).json({ error: 'Invalid OTP' });
     }
 
     if (!user.otpExpires || user.otpExpires < new Date()) {
+      const exhausted = trackOtpFailure(normalizedEmail);
+      if (exhausted) {
+        return res.status(429).json({ error: 'Too many invalid OTP attempts. Please try again later.' });
+      }
       return res.status(400).json({ error: 'OTP expired' });
     }
 
+    clearOtpFailureState(normalizedEmail);
     user.isVerified = true;
     user.otp = null;
     user.otpExpires = null;
@@ -333,8 +402,7 @@ exports.acceptPrivacyConsent = async (req, res, next) => {
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
-    const userObj = user.toObject();
-    delete userObj.password;
+    const userObj = sanitizeUser(user);
 
     return res.json({ token, user: userObj });
   } catch (error) {
@@ -384,7 +452,7 @@ exports.declinePrivacyConsent = async (req, res, next) => {
 // @access  Private (JWT required)
 exports.getMe = async (req, res) => {
   try {
-    res.json(req.user);
+    res.json(sanitizeUser(req.user));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -402,12 +470,15 @@ exports.forgotPassword = async (req, res, next) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
+    const genericMessage = { message: 'If that email is registered, a reset code has been sent.' };
+
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(200).json(genericMessage);
     }
 
     // Generate secure 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString().padStart(6, '0');
+    clearOtpFailureState(normalizedEmail);
     user.otp = otp;
     user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
     await user.save();
@@ -427,7 +498,7 @@ exports.forgotPassword = async (req, res, next) => {
     }
 
     // Never expose raw OTP in HTTP response
-    res.json({ message: 'OTP sent to your email' });
+    res.status(200).json(genericMessage);
   } catch (error) {
     next(error);
   }
@@ -443,20 +514,41 @@ exports.resetPassword = async (req, res, next) => {
       return res.status(400).json({ error: 'Missing fields' });
     }
 
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters long' });
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
+    if (getOtpAttemptState(normalizedEmail).count >= OTP_ATTEMPT_LIMIT) {
+      return res.status(429).json({ error: 'Too many invalid OTP attempts. Please try again later.' });
+    }
+
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      const exhausted = trackOtpFailure(normalizedEmail);
+      if (exhausted) {
+        return res.status(429).json({ error: 'Too many invalid OTP attempts. Please try again later.' });
+      }
+      return res.status(400).json({ error: 'Invalid OTP' });
     }
 
     if (!user.otp || user.otp !== otp.trim()) {
+      const exhausted = trackOtpFailure(normalizedEmail);
+      if (exhausted) {
+        return res.status(429).json({ error: 'Too many invalid OTP attempts. Please try again later.' });
+      }
       return res.status(400).json({ error: 'Invalid OTP' });
     }
 
     if (!user.otpExpires || user.otpExpires < new Date()) {
+      const exhausted = trackOtpFailure(normalizedEmail);
+      if (exhausted) {
+        return res.status(429).json({ error: 'Too many invalid OTP attempts. Please try again later.' });
+      }
       return res.status(400).json({ error: 'OTP expired' });
     }
 
+    clearOtpFailureState(normalizedEmail);
     user.password = newPassword;
     user.otp = null;
     user.otpExpires = null;
@@ -515,6 +607,10 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ error: 'Missing fields', message: 'Missing fields' });
     }
 
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters long', message: 'New password must be at least 8 characters long' });
+    }
+
     const userId = req.user?._id || req.user?.id;
     const user = await User.findById(userId).select('+password');
     if (!user) {
@@ -542,8 +638,10 @@ exports.changePassword = async (req, res) => {
 // @access  Private (Superadmin only)
 exports.getDepartmentAccounts = async (req, res) => {
   try {
-    const accounts = await User.find({ role: { $regex: /^department$/i } }).select('-password').sort({ createdAt: -1 });
-    res.json(accounts);
+    const accounts = await User.find({ role: { $regex: /^department$/i } })
+      .select('_id firstName lastName email departmentCategory')
+      .sort({ createdAt: -1 });
+    res.json(accounts.map(sanitizeUser));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -617,8 +715,7 @@ exports.createDepartmentAccount = async (req, res) => {
     });
 
     await user.save();
-    const userObj = user.toObject();
-    delete userObj.password;
+    const userObj = sanitizeUser(user);
 
     res.status(201).json({ message: 'Account created', user: userObj });
   } catch (error) {
@@ -643,8 +740,7 @@ exports.updateDepartmentAccount = async (req, res) => {
     if (password) user.password = password; // pre-save hook hashes
 
     await user.save();
-    const userObj = user.toObject();
-    delete userObj.password;
+    const userObj = sanitizeUser(user);
 
     res.json({ message: 'Account updated', user: userObj });
   } catch (error) {
