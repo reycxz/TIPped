@@ -73,14 +73,23 @@ export default function Login({
         navigate('/dashboard');
       }
     } catch (err) {
+      const status = err.response?.status;
+      const serverMessage = err.response?.data?.message || err.response?.data?.error;
+
+      if (status === 429) {
+        setError(serverMessage || 'Too many login attempts. Please try again later.');
+        return;
+      }
+
       const nextFailures = failedAttempts + 1;
       setFailedAttempts(nextFailures);
 
-      // Constraint 3: If login fails > 5 times, display exact lockout message
+      // After more than 5 failed attempts the server may be locking the account
+      // (it returns the same 401 as a wrong password). Point the user to password recovery.
       if (nextFailures > 5) {
         setError('Please check spelling or click Forgot password');
       } else {
-        setError(err.response?.data?.message || err.response?.data?.error || 'Invalid credentials');
+        setError(serverMessage || 'Invalid credentials');
       }
     } finally {
       setLoading(false);

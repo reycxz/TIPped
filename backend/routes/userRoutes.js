@@ -4,10 +4,11 @@ const { updateUserProfile } = require('../controllers/userController');
 const authController = require('../controllers/authController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/ownership');
+const { loginIpLimiter, loginIdentityLimiter, googleAuthLimiter } = require('../middleware/rateLimiters');
 
 // Public routes
-router.post('/google-auth', authController.googleAuth);
-router.post('/login', authController.login);
+router.post('/google-auth', googleAuthLimiter, authController.googleAuth);
+router.post('/login', loginIpLimiter, loginIdentityLimiter, authController.login);
 
 // @desc    Update user profile (firstName, lastName, program)
 // @route   PUT /api/users/profile, PATCH /api/users/profile

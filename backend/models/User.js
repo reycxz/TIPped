@@ -37,6 +37,9 @@ const userSchema = new mongoose.Schema(
         message: 'Password must be at least 6 characters'
       }
     },
+    failedLoginAttempts: { type: Number, default: 0, select: false },
+    lockUntil: { type: Date, default: null, select: false },
+    lastFailedLoginAt: { type: Date, default: null, select: false },
     authProvider: {
       type: String,
       enum: ['local', 'google'],

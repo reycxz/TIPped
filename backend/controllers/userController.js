@@ -50,6 +50,11 @@ exports.googleAuth = async (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired Google OAuth token' });
     }
 
+    const emailVerified = googleUser.email_verified === true || googleUser.email_verified === 'true';
+    if (!emailVerified) {
+      return res.status(403).json({ error: 'Your Google account email is not verified' });
+    }
+
     const verifiedEmail = googleUser.email.toLowerCase().trim();
 
     // Enforce Institutional Domain Restriction (@tip.edu.ph)
@@ -62,6 +67,10 @@ exports.googleAuth = async (req, res) => {
     let user = await User.findOne({ email: verifiedEmail });
 
     if (user) {
+      if (['admin', 'superadmin', 'department'].includes(String(user.role || '').toLowerCase())) {
+        return res.status(403).json({ error: 'Staff accounts must sign in with email and password' });
+      }
+
       const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
       const userObj = sanitizeUser(user);
       return res.status(200).json({
@@ -104,7 +113,8 @@ exports.googleAuth = async (req, res) => {
       user: userObj
     });
   } catch (error) {
-    return res.status(500).json({ error: error.message || 'Server error during Google authentication' });
+    console.error('[auth]', { event: 'google_auth_error', name: error && error.name, at: new Date().toISOString() });
+    return res.status(500).json({ error: 'Server error during Google authentication' });
   }
 };
 

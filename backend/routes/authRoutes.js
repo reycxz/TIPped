@@ -4,14 +4,7 @@ const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/ownership');
-
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many login attempts from this IP, please try again later.' }
-});
+const { loginIpLimiter, loginIdentityLimiter, googleAuthLimiter } = require('../middleware/rateLimiters');
 
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -40,8 +33,8 @@ const passwordResetLimiter = rateLimit({
 // Public routes
 router.post('/register', registerLimiter, authController.register);
 router.post('/verify-otp', verifyOtpLimiter, authController.verifyOtp);
-router.post('/login', loginLimiter, authController.login);
-router.post('/google-auth', authController.googleAuth);
+router.post('/login', loginIpLimiter, loginIdentityLimiter, authController.login);
+router.post('/google-auth', googleAuthLimiter, authController.googleAuth);
 router.post('/consent', authController.acceptPrivacyConsent);
 router.post('/decline', authController.declinePrivacyConsent);
 router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);

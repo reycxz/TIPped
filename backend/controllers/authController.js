@@ -9,6 +9,20 @@ const {
   getDepartmentCategoryNames,
   findDepartmentAccounts,
 } = require('../utils/departmentAccountSync');
+const { createLoginGuard, createMongooseStore } = require('../utils/loginLockout');
+
+const loginGuard = createLoginGuard(createMongooseStore(User));
+const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
+const INVALID = { message: 'Invalid credentials', error: 'Invalid credentials' };
+
+const logLoginEvent = (event, req, user) => {
+  console.warn('[auth]', {
+    event,
+    ...(user ? { userId: String(user._id), role: user.role } : {}),
+    ip: req.ip,
+    at: new Date().toISOString()
+  });
+};
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -19,6 +33,9 @@ const sanitizeUser = (user) => {
   delete userObj.otp;
   delete userObj.otpExpires;
   delete userObj.__v;
+  delete userObj.failedLoginAttempts;
+  delete userObj.lockUntil;
+  delete userObj.lastFailedLoginAt;
   return userObj;
 };
 
@@ -247,14 +264,23 @@ exports.verifyOtp = async (req, res, next) => {
 // @access  Public
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Please provide email and password' });
     }
 
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    if (password.length > 1000) {
+      return res.status(401).json(INVALID);
+    }
+
+    const user = await User.findOne({ email }).select('+password +failedLoginAttempts +lockUntil +lastFailedLoginAt');
+    if (!user) {
+      await bcrypt.compare(password, DUMMY_HASH);
+      logLoginEvent('unknown_account', req);
+      return res.status(401).json(INVALID);
+    }
 
     // Constraint 5: Check if user registered with Google
     if (user.authProvider === 'google') {
@@ -264,9 +290,22 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(req.body.password, user.password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
+    const gate = await loginGuard.attempt(user);
+    if (!gate.allowed) {
+      await bcrypt.compare(password, DUMMY_HASH);
+      logLoginEvent('blocked', req, user);
+      return res.status(401).json(INVALID);
+    }
 
+    const result = await bcrypt.compare(password, user.password || DUMMY_HASH);
+    const isMatch = Boolean(user.password) && result;
+    if (!isMatch) {
+      const failure = await loginGuard.fail(user, gate);
+      logLoginEvent(failure.locked ? 'locked' : 'failed', req, user);
+      return res.status(401).json(INVALID);
+    }
+
+    await loginGuard.succeed(user);
     return sendAuthResponse(res, user);
   } catch (error) {
     next(error);
@@ -310,6 +349,11 @@ exports.googleAuth = async (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired Google OAuth token' });
     }
 
+    const emailVerified = googleUser.email_verified === true || googleUser.email_verified === 'true';
+    if (!emailVerified) {
+      return res.status(403).json({ error: 'Your Google account email is not verified' });
+    }
+
     const verifiedEmail = googleUser.email.toLowerCase().trim();
 
     // Enforce Institutional Domain Restriction (@tip.edu.ph)
@@ -322,6 +366,10 @@ exports.googleAuth = async (req, res) => {
     let user = await User.findOne({ email: verifiedEmail });
 
     if (user) {
+      if (isStaffRole(user.role)) {
+        return res.status(403).json({ error: 'Staff accounts must sign in with email and password' });
+      }
+
       return sendAuthResponse(res, user);
     }
 
@@ -351,7 +399,8 @@ exports.googleAuth = async (req, res) => {
 
     return sendAuthResponse(res, user, 201);
   } catch (error) {
-    return res.status(500).json({ error: error.message || 'Server error during Google authentication' });
+    console.error('[auth]', { event: 'google_auth_error', name: error && error.name, at: new Date().toISOString() });
+    return res.status(500).json({ error: 'Server error during Google authentication' });
   }
 };
 
@@ -553,6 +602,12 @@ exports.resetPassword = async (req, res, next) => {
     user.otp = null;
     user.otpExpires = null;
     await user.save();
+
+    try {
+      await loginGuard.succeed(user);
+    } catch (unlockError) {
+      console.warn('[auth]', { event: 'lock_clear_failed', userId: String(user._id), at: new Date().toISOString() });
+    }
 
     res.json({ message: 'Password saved' });
   } catch (error) {

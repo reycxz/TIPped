@@ -1,19 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const rateLimit = require('express-rate-limit');
 const ticketController = require('../controllers/ticketController');
 const { verifyToken, requireRole, requireStaffOrAdmin } = require('../middleware/auth');
 const { requireScopedTicket } = require('../middleware/ownership');
 
 const upload = require('../middleware/upload');
-
-const guestTicketLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many guest report submissions from this IP, please try again later.' }
-});
+const { guestTicketLimiter, ticketCreateLimiter } = require('../middleware/rateLimiters');
 
 // 1. Public static routes
 router.get('/categories', ticketController.getCategories);
@@ -28,7 +20,7 @@ router.get('/admin', verifyToken, requireRole('Admin', 'Department', 'Superadmin
 
 // 3. Base collection routes
 router.get('/', verifyToken, requireRole('Admin', 'Department', 'Superadmin'), ticketController.getTickets);
-router.post('/', verifyToken, upload.array('images', 5), ticketController.createTicket);
+router.post('/', verifyToken, ticketCreateLimiter, upload.array('images', 5), ticketController.createTicket);
 
 // 4. Specific sub-path actions on a document (BEFORE generic /:id)
 router.put('/:id/archive', verifyToken, requireStaffOrAdmin, requireScopedTicket, ticketController.archiveReport);
