@@ -11,6 +11,7 @@ const {
 } = require('../utils/departmentAccountSync');
 const { createLoginGuard, createMongooseStore } = require('../utils/loginLockout');
 const { verifyGoogleAudience } = require('../utils/googleAudience');
+const { getNextProgramChangeAt, updateProgram } = require('../utils/programChange');
 
 const loginGuard = createLoginGuard(createMongooseStore(User));
 const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
@@ -37,6 +38,8 @@ const sanitizeUser = (user) => {
   delete userObj.failedLoginAttempts;
   delete userObj.lockUntil;
   delete userObj.lastFailedLoginAt;
+  delete userObj.programChangedAt;
+  userObj.nextProgramChangeAt = getNextProgramChangeAt(user.programChangedAt);
   return userObj;
 };
 
@@ -664,17 +667,19 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { firstName, lastName, avatar, program } = req.body;
+    const { firstName, lastName, avatar } = req.body;
+    const programError = updateProgram(user, req.body);
+    if (programError) {
+      return res.status(programError.status).json(programError.body);
+    }
 
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
     if (avatar) user.avatar = avatar;
-    user.program = req.body.program || user.program;
 
     await user.save();
 
-    const userObj = user.toObject();
-    delete userObj.password;
+    const userObj = sanitizeUser(user);
 
     res.status(200).json({
       message: 'Profile updated successfully',

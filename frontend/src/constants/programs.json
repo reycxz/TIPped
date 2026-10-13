@@ -1,0 +1,37 @@
+[
+  {
+    "college": "College of Engineering and Architecture",
+    "programs": [
+      "BS Architecture",
+      "BS Chemical Engineering",
+      "BS Civil Engineering",
+      "BS Computer Engineering",
+      "BS Electrical Engineering",
+      "BS Electronics Engineering",
+      "BS Industrial Engineering",
+      "BS Mechanical Engineering"
+    ]
+  },
+  {
+    "college": "College of Computer Studies",
+    "programs": [
+      "BS Computer Science",
+      "BS Information Systems",
+      "BS Information Technology"
+    ]
+  },
+  {
+    "college": "College of Business Education",
+    "programs": [
+      "BS Accountancy",
+      "BS Accounting Information Systems",
+      "BS Business Administration"
+    ]
+  },
+  {
+    "college": "College of Arts",
+    "programs": [
+      "BA Political Science"
+    ]
+  }
+]

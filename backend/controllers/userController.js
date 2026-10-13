@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { getNextProgramChangeAt, updateProgram } = require('../utils/programChange');
 
 const sanitizeUser = (user) => {
   if (!user) return null;
@@ -7,6 +8,8 @@ const sanitizeUser = (user) => {
   delete userObj.otp;
   delete userObj.otpExpires;
   delete userObj.__v;
+  delete userObj.programChangedAt;
+  userObj.nextProgramChangeAt = getNextProgramChangeAt(user.programChangedAt);
   return userObj;
 };
 
@@ -22,11 +25,14 @@ exports.updateUserProfile = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { firstName, lastName, program, avatar } = req.body;
+    const { firstName, lastName, avatar } = req.body;
+    const programError = updateProgram(user, req.body);
+    if (programError) {
+      return res.status(programError.status).json(programError.body);
+    }
 
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
-    if (program) user.program = program;
     if (avatar) user.avatar = avatar;
 
     await user.save();
