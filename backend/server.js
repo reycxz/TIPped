@@ -6,6 +6,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const http = require('http');
 const connectDB = require('./config/db');
+const { apiLimiter } = require('./middleware/rateLimiters');
 
 require('./cronJobs');
 
@@ -13,6 +14,14 @@ require('./cronJobs');
 connectDB();
 
 const app = express();
+const trustProxyHops = parseInt(process.env.TRUST_PROXY_HOPS, 10);
+if (Number.isInteger(trustProxyHops) && trustProxyHops >= 0 && trustProxyHops <= 5) {
+  app.set('trust proxy', trustProxyHops);
+  console.log('trust proxy hops:', trustProxyHops);
+}
+if (process.env.NODE_ENV === 'production' && !(Number.isInteger(trustProxyHops) && trustProxyHops >= 0 && trustProxyHops <= 5)) {
+  console.warn('TRUST_PROXY_HOPS is not set or invalid; IP-based rate limits use the direct connection address. Set it if the app runs behind a reverse proxy.');
+}
 const allowedOrigins = (
   process.env.CORS_ORIGINS ||
   process.env.FRONTEND_URL ||
@@ -30,6 +39,7 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use('/api', apiLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

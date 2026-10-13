@@ -4,6 +4,7 @@ const ticketController = require('../controllers/ticketController');
 const { verifyToken, requireRole, authorize } = require('../middleware/auth');
 const { requireScopedTicket } = require('../middleware/ownership');
 const upload = require('../middleware/upload');
+const { guestTicketLimiter, ticketCreateLimiter } = require('../middleware/rateLimiters');
 
 // =========================================================================
 // Constraint 1: Static routes MUST be declared strictly BEFORE dynamic '/:id' routes
@@ -21,11 +22,11 @@ router.get('/admin', verifyToken, requireRole('Department', 'Superadmin'), ticke
 router.get('/analytics', verifyToken, authorize('superadmin'), ticketController.getAnalytics);
 
 // 3. Public guest report submission
-router.post('/guest', upload.array('images', 5), ticketController.createGuestTicket);
+router.post('/guest', guestTicketLimiter, upload.array('images', 5), ticketController.createGuestTicket);
 
 // 4. Base collection routes
 router.get('/', verifyToken, requireRole('Department', 'Superadmin'), ticketController.getTickets);
-router.post('/', verifyToken, upload.array('images', 5), ticketController.createTicket);
+router.post('/', verifyToken, ticketCreateLimiter, upload.array('images', 5), ticketController.createTicket);
 
 // 5. Specific sub-path actions on a document (BEFORE generic /:id)
 router.patch('/:id/archive', verifyToken, authorize('superadmin'), requireScopedTicket, ticketController.archiveReport);
