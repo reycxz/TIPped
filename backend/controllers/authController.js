@@ -10,6 +10,7 @@ const {
   findDepartmentAccounts,
 } = require('../utils/departmentAccountSync');
 const { createLoginGuard, createMongooseStore } = require('../utils/loginLockout');
+const { verifyGoogleAudience } = require('../utils/googleAudience');
 
 const loginGuard = createLoginGuard(createMongooseStore(User));
 const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
@@ -346,6 +347,15 @@ exports.googleAuth = async (req, res) => {
     }
 
     if (!googleUser || !googleUser.email) {
+      return res.status(401).json({ error: 'Invalid or expired Google OAuth token' });
+    }
+
+    const audience = await verifyGoogleAudience(googleToken, googleUser);
+    if (audience.notConfigured) {
+      console.error('[auth]', { event: 'google_client_id_missing', at: new Date().toISOString() });
+      return res.status(503).json({ error: 'Google sign-in is not available right now' });
+    }
+    if (!audience.ok) {
       return res.status(401).json({ error: 'Invalid or expired Google OAuth token' });
     }
 
