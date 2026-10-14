@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { updateTicket, archiveReport } from '../api/tickets';
 import { getDepartments } from '../api/adminData';
 import { getMe } from '../api/auth';
-import { X, Clock, MapPin, Tag, ZoomIn } from 'lucide-react';
+import { X, Clock, MapPin, Tag, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import CampusMap from './CampusMap/CampusMap';
 import { getCampusBuildingId } from '../constants/campusData';
 import { formatTicketLocation } from '../utils/ticketLocation';
@@ -38,7 +38,8 @@ export default function TicketDrawer({
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState('');
-  const [zoomedImage, setZoomedImage] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+  const touchStartX = useRef(null);
   const [showMapReadOnly, setShowMapReadOnly] = useState(false);
 
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function TicketDrawer({
 
   useEffect(() => {
     if (ticket && isOpen) {
+      setSelectedImageIndex(null);
       setStatus(ticket.status || 'Pending');
       setPriority(ticket.priority || 'Medium');
       const dept = ticket.assignedDepartment || ticket.category || 'General';
@@ -108,6 +110,23 @@ export default function TicketDrawer({
       setSaving(false);
     }
   }, [ticket, isOpen]);
+
+  useEffect(() => {
+    if (selectedImageIndex === null || !ticket?.images?.length) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSelectedImageIndex(null);
+      } else if (event.key === 'ArrowLeft') {
+        setSelectedImageIndex((index) => (index - 1 + ticket.images.length) % ticket.images.length);
+      } else if (event.key === 'ArrowRight') {
+        setSelectedImageIndex((index) => (index + 1) % ticket.images.length);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImageIndex, ticket?.images]);
 
   if (!isOpen || !ticket) return null;
 
@@ -262,7 +281,7 @@ export default function TicketDrawer({
                 {ticket.images.map((img, idx) => (
                   <div
                     key={idx}
-                    onClick={() => setZoomedImage(img)}
+                    onClick={() => setSelectedImageIndex(idx)}
                     className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 cursor-pointer group"
                   >
                     <img
@@ -437,16 +456,66 @@ export default function TicketDrawer({
       </div>
 
       {/* Zoomable Image Lightbox */}
-      {zoomedImage && (
+      {selectedImageIndex !== null && ticket.images?.[selectedImageIndex] && (
         <div
-          onClick={() => setZoomedImage(null)}
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setSelectedImageIndex(null)}
+          onTouchStart={(event) => {
+            touchStartX.current = event.changedTouches[0].clientX;
+          }}
+          onTouchEnd={(event) => {
+            if (touchStartX.current === null || ticket.images.length < 2) return;
+            const delta = event.changedTouches[0].clientX - touchStartX.current;
+            touchStartX.current = null;
+            if (Math.abs(delta) < 50) return;
+            setSelectedImageIndex((index) => (
+              delta < 0
+                ? (index + 1) % ticket.images.length
+                : (index - 1 + ticket.images.length) % ticket.images.length
+            ));
+          }}
+          className="fixed inset-0 z-[100000] flex cursor-pointer items-center justify-center bg-black/90 p-4"
         >
+          <button
+            type="button"
+            onClick={() => setSelectedImageIndex(null)}
+            aria-label="Close image viewer"
+            className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <div
+            onClick={(event) => event.stopPropagation()}
+            className="relative flex max-h-[85dvh] max-w-full items-center justify-center px-14"
+          >
+            {ticket.images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImageIndex((index) => (index - 1 + ticket.images.length) % ticket.images.length)}
+                  aria-label="Previous image"
+                  className="absolute left-1 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImageIndex((index) => (index + 1) % ticket.images.length)}
+                  aria-label="Next image"
+                  className="absolute right-1 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+            <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-sm font-medium text-white">
+              {selectedImageIndex + 1} / {ticket.images.length}
+            </div>
           <img
-            src={zoomedImage}
+            src={ticket.images[selectedImageIndex]}
             alt=""
-            className="max-w-full max-h-full rounded-lg object-contain"
+            className="max-h-[85dvh] max-w-full rounded-lg object-contain"
           />
+          </div>
         </div>
       )}
 
