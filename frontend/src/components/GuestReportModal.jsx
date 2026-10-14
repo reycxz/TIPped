@@ -5,6 +5,7 @@ import { Upload, X, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
 import CampusMap from './CampusMap/CampusMap';
 import { CAMPUS_BUILDINGS, getCampusBuildingFloors } from '../constants/campusData';
 import { getPhotoSize, MAX_IMAGE_COUNT, MAX_IMAGE_SIZE_BYTES } from '../constants/imageUploadLimits';
+import { compressImage } from '../utils/compressImage';
 
 const arleguiRooms = {
   '1': ['A-101', 'A-102', 'A-103', 'A-104', 'A-105', 'A-106', 'A-107', 'A-108', 'A-109', 'A-110'],
@@ -338,7 +339,7 @@ export default function GuestReportModal({
     setShowEmailModal(false);
   };
 
-  const buildFormData = (optionalEmail = '') => {
+  const buildFormData = async (optionalEmail = '') => {
     const formData = new FormData();
     formData.append('campus', campus);
     formData.append('building', currentBuildingConfig?.selectable ? currentBuildingConfig.name : '');
@@ -351,11 +352,11 @@ export default function GuestReportModal({
     formData.append('description', description.trim());
     if (optionalEmail) formData.append('guestEmail', optionalEmail.trim());
 
-    photos.forEach((photo) => {
-      if (photo.file instanceof File) {
-        formData.append('images', photo.file);
-      } else if (photo.dataUrl && photo.dataUrl.startsWith('data:image/')) {
-        const arr = photo.dataUrl.split(',');
+    for (const photo of photos) {
+      let file = photo instanceof File ? photo : photo?.file;
+      const dataUrl = typeof photo === 'string' ? photo : photo?.dataUrl;
+      if (!(file instanceof File) && typeof dataUrl === 'string' && dataUrl.startsWith('data:image/')) {
+        const arr = dataUrl.split(',');
         const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
         const bstr = atob(arr[1]);
         let n = bstr.length;
@@ -363,21 +364,13 @@ export default function GuestReportModal({
         while (n--) {
           u8arr[n] = bstr.charCodeAt(n);
         }
-        const blob = new Blob([u8arr], { type: mime });
-        formData.append('images', blob, photo.name || 'photo.jpg');
-      } else if (typeof photo === 'string' && photo.startsWith('data:image/')) {
-        const arr = photo.split(',');
-        const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-        const bstr = atob(arr[1]);
-        let n = bstr.length;
-        const u8arr = new Uint8Array(n);
-        while (n--) {
-          u8arr[n] = bstr.charCodeAt(n);
-        }
-        const blob = new Blob([u8arr], { type: mime });
-        formData.append('images', blob, 'photo.jpg');
+        file = new File([u8arr], photo?.name || 'photo', { type: mime });
       }
-    });
+      if (!(file instanceof File)) {
+        throw new Error('A selected photo could not be prepared. Please remove it and select it again.');
+      }
+      formData.append('images', await compressImage(file));
+    }
 
     return formData;
   };
@@ -436,12 +429,19 @@ export default function GuestReportModal({
     setEmailSubmissionError('');
 
     try {
-      const formData = buildFormData(normalizedEmail);
+      const formData = await buildFormData(normalizedEmail);
       await createGuestTicket(formData);
       setGuestEmail(normalizedEmail);
       setIsSubmitted(true);
     } catch (err) {
-      setEmailSubmissionError(err.response?.data?.error || 'Submission failed');
+      const responseError = err?.response?.data?.error || err?.response?.data?.message;
+      setEmailSubmissionError(
+        typeof responseError === 'string'
+          ? responseError
+          : typeof err?.message === 'string'
+            ? err.message
+            : 'Photo upload or report submission failed. Please try again.'
+      );
     } finally {
       setLoading(false);
       setSubmissionAction('');

@@ -23,7 +23,7 @@ export default function ConsoleHeader({
   const pillName = departmentName || categoryName;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="flex flex-col gap-3">
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <h1 className="font-display text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white md:text-4xl">
           {activeTab === 'routing' ? 'Routing' : 'Queue'}
@@ -35,7 +35,7 @@ export default function ConsoleHeader({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-3">
+      <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
         {isSuperadmin && (
           <div
             className="flex items-center rounded-full border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800"
@@ -86,7 +86,11 @@ export default function ConsoleHeader({
             </span>
           </div>
         )}
-        {actionSlot}
+        {actionSlot && (
+          <div className="flex w-full justify-start md:justify-end">
+            {actionSlot}
+          </div>
+        )}
       </div>
     </div>
   );

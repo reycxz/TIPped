@@ -41,6 +41,16 @@ export default function TicketDrawer({
   const [zoomedImage, setZoomedImage] = useState(null);
   const [showMapReadOnly, setShowMapReadOnly] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   // Resolve user from props, or fallback to session
   useEffect(() => {
     if (propUser) {
@@ -172,10 +182,13 @@ export default function TicketDrawer({
   };
 
   return createPortal(
-    <div className="fixed inset-0 w-screen h-screen z-[99999] bg-slate-900/80 backdrop-blur-sm flex justify-center items-center">
-      <div className="w-full max-w-xl bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-200 transition-colors">
+    <div className="fixed inset-0 z-[99999] flex h-[100dvh] items-center justify-center bg-slate-900/80 backdrop-blur-sm">
+      <div
+        className="flex h-[100dvh] max-h-[100dvh] w-full max-w-xl flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl transition-colors dark:border-slate-700 dark:bg-slate-800 animate-in slide-in-from-right duration-200"
+        style={{ height: '100dvh' }}
+      >
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 p-6 dark:border-slate-700/60">
           <div className="space-y-1">
             <div className="flex items-center space-x-3">
               <span className="text-lg font-mono font-bold text-primary">
@@ -222,7 +235,7 @@ export default function TicketDrawer({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6 pb-6">
           {error && (
             <div className="p-3 bg-red-500/10 border border-red-500/40 text-red-500 dark:text-red-400 text-xs rounded-lg">
               {error}
@@ -395,7 +408,10 @@ export default function TicketDrawer({
         </div>
 
         {/* Footer with Action Debounced Button & Move to Bin Button */}
-        <div className="p-6 border-t border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
+        <div
+          className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50 p-6 dark:border-slate-700/60 dark:bg-slate-900/50"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+        >
           <div>
             {user?.role === 'superadmin' && (
               <button
