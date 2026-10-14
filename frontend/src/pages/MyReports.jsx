@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getMyTickets, getCategories } from '../api/tickets';
-import { Search, Filter, X, ZoomIn, Clock, MapPin, Tag } from 'lucide-react';
+import { Search, Filter, X, ZoomIn, Clock, MapPin, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatTicketLocation } from '../utils/ticketLocation';
 
 export default function MyReports() {
@@ -22,9 +22,28 @@ export default function MyReports() {
   const [filterOpen, setFilterOpen] = useState(false);
 
   // Lightbox for evidence photos
-  const [zoomedImage, setZoomedImage] = useState(null);
+  const [zoomedImages, setZoomedImages] = useState([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(null);
 
   const filterRef = useRef(null);
+  const touchStartX = useRef(null);
+
+  useEffect(() => {
+    if (selectedImageIndex === null || zoomedImages.length === 0) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSelectedImageIndex(null);
+      } else if (event.key === 'ArrowLeft') {
+        setSelectedImageIndex((index) => (index - 1 + zoomedImages.length) % zoomedImages.length);
+      } else if (event.key === 'ArrowRight') {
+        setSelectedImageIndex((index) => (index + 1) % zoomedImages.length);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImageIndex, zoomedImages]);
 
   // Close filter dropdown on outside click
   useEffect(() => {
@@ -290,7 +309,10 @@ export default function MyReports() {
                       {ticket.images.slice(0, 2).map((img, idx) => (
                         <div
                           key={idx}
-                          onClick={() => setZoomedImage(img)}
+                          onClick={() => {
+                            setZoomedImages(ticket.images);
+                            setSelectedImageIndex(idx);
+                          }}
                           className="relative h-32 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 cursor-pointer group/img"
                         >
                           <img
@@ -340,16 +362,66 @@ export default function MyReports() {
       )}
 
       {/* Lightbox Modal */}
-      {zoomedImage && (
+      {selectedImageIndex !== null && zoomedImages[selectedImageIndex] && (
         <div
-          onClick={() => setZoomedImage(null)}
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setSelectedImageIndex(null)}
+          onTouchStart={(event) => {
+            touchStartX.current = event.changedTouches[0].clientX;
+          }}
+          onTouchEnd={(event) => {
+            if (touchStartX.current === null || zoomedImages.length < 2) return;
+            const delta = event.changedTouches[0].clientX - touchStartX.current;
+            touchStartX.current = null;
+            if (Math.abs(delta) < 50) return;
+            setSelectedImageIndex((index) => (
+              delta < 0
+                ? (index + 1) % zoomedImages.length
+                : (index - 1 + zoomedImages.length) % zoomedImages.length
+            ));
+          }}
+          className="fixed inset-0 z-[100000] flex cursor-pointer items-center justify-center bg-black/90 p-4"
         >
+          <button
+            type="button"
+            onClick={() => setSelectedImageIndex(null)}
+            aria-label="Close image viewer"
+            className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <div
+            onClick={(event) => event.stopPropagation()}
+            className="relative flex max-h-[85dvh] max-w-full items-center justify-center px-14"
+          >
+            {zoomedImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImageIndex((index) => (index - 1 + zoomedImages.length) % zoomedImages.length)}
+                  aria-label="Previous image"
+                  className="absolute left-1 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImageIndex((index) => (index + 1) % zoomedImages.length)}
+                  aria-label="Next image"
+                  className="absolute right-1 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+            <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-sm font-medium text-white">
+              {selectedImageIndex + 1} / {zoomedImages.length}
+            </div>
           <img
-            src={zoomedImage}
+            src={zoomedImages[selectedImageIndex]}
             alt=""
-            className="max-w-full max-h-full rounded-lg object-contain"
+            className="max-h-[85dvh] max-w-full rounded-lg object-contain"
           />
+          </div>
         </div>
       )}
     </div>
