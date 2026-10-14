@@ -1,6 +1,6 @@
 # Tipped — TIP Manila Campus Incident Reporting System
 
-Tipped is a campus incident reporting system for TIP Manila. Students, staff, and guests can submit reports, while authorized department staff and administrators review and manage incidents in a role-scoped queue.
+Tipped is a campus incident reporting system for TIP Manila. Students and guests can submit reports, while authorized department staff and administrators review and manage incidents in a role-scoped queue.
 
 ## Features
 
