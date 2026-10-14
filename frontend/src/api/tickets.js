@@ -34,7 +34,7 @@ export const getCategories = async () => {
 
 export const createTicket = async (ticketData) => {
   const isFormData = typeof FormData !== 'undefined' && ticketData instanceof FormData;
-  const response = await api.post('/', ticketData, {
+  const response = await api.post('', ticketData, {
     ...buildAxiosConfig(),
     headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
   });
