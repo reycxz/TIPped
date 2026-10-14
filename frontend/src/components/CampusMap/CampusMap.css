@@ -348,6 +348,29 @@
   overflow-y: auto;
 }
 
+.campus-map-panel.picker-selected {
+  max-height: none;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+}
+
+.campus-map-panel.picker-selected .campus-map-panel-body {
+  flex: 0 0 auto;
+  min-height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
+
+.campus-map-panel.picker-selected .campus-map-x {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.campus-map-panel.picker-selected .campus-map-title {
+  overflow-wrap: anywhere;
+  padding-right: 40px;
+}
+
 .campus-map-k {
   font-size: 12px;
   font-weight: 700;
@@ -655,6 +678,19 @@
   .campus-map-zc button {
     width: 38px;
     height: 38px;
+  }
+}
+
+@media (max-height: 700px) {
+  .campus-map-panel.picker-selected {
+    max-height: min(calc(100% - 16px), calc(min(50dvh, 24rem) + 100px));
+  }
+
+  .campus-map-panel.picker-selected .campus-map-panel-body {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(50dvh, 24rem);
+    overflow-y: auto;
   }
 }
 

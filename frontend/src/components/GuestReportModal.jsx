@@ -851,13 +851,13 @@ export default function GuestReportModal({
     {showMapPicker && (
       <div
         onClick={() => setShowMapPicker(false)}
-        className="fixed inset-0 w-screen h-screen z-[99999] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm"
+        className="fixed inset-0 z-[99999] flex h-[100dvh] w-screen items-center justify-center bg-slate-900/80 backdrop-blur-sm"
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-5xl max-h-[95vh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+          className="relative flex h-full max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
         >
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/80">
             <div className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
               Select Campus Location
             </div>
@@ -870,7 +870,7 @@ export default function GuestReportModal({
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="relative w-full h-[60vh] min-h-[400px] overflow-hidden">
+          <div className="relative min-h-0 w-full flex-1 overflow-hidden">
             <CampusMap
               mode="picker"
               onLocationSelect={(loc) => {

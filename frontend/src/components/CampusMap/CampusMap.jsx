@@ -780,6 +780,8 @@ const CampusMap = ({
       {/* Side Panel (Desktop) / Bottom Sheet (Mobile) */}
       <div
         className={`campus-map-panel ${
+          mode === 'picker' && selectedPlace ? 'picker-selected' : ''
+        } ${
           !selectedPlace
             ? mobileProTipOpen
               ? 'mobile-protip-open'
