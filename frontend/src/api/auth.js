@@ -74,6 +74,11 @@ export const verifyRegistrationOtp = async (email, otp) => {
   return response.data;
 };
 
+export const resendRegistrationOtp = async (email) => {
+  const response = await api.post('/resend-otp', { email });
+  return response.data;
+};
+
 export const getDepartmentAccounts = async () => {
   const response = await api.get('/departments');
   return response.data;

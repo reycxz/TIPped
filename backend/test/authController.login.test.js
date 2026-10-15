@@ -106,10 +106,9 @@ test('does not issue a token to an unverified local account with a correct passw
 
   const response = await submitLogin();
 
-  assert.equal(response.statusCode, 401);
+  assert.equal(response.statusCode, 403);
   assert.deepEqual(response.body, {
-    message: 'Invalid credentials',
-    error: 'Invalid credentials'
+    message: 'Please verify your email first'
   });
   assert.equal(tokenSignCalls, 0);
   assert.equal(currentUser.failedLoginAttempts, 0);
@@ -120,10 +119,9 @@ test('fails closed when an existing local account has no verification flag', asy
 
   const response = await submitLogin();
 
-  assert.equal(response.statusCode, 401);
+  assert.equal(response.statusCode, 403);
   assert.deepEqual(response.body, {
-    message: 'Invalid credentials',
-    error: 'Invalid credentials'
+    message: 'Please verify your email first'
   });
   assert.equal(tokenSignCalls, 0);
 });

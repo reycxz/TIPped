@@ -4,7 +4,7 @@ const Department = require('../models/Department');
 const Category = require('../models/Category');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const { createEmailTransporter, getEmailSender } = require('../utils/emailService');
 const {
   getDepartmentCategoryNames,
   findDepartmentAccounts,
@@ -34,6 +34,7 @@ const sanitizeUser = (user) => {
   delete userObj.password;
   delete userObj.otp;
   delete userObj.otpExpires;
+  delete userObj.otpLastSentAt;
   delete userObj.__v;
   delete userObj.failedLoginAttempts;
   delete userObj.lockUntil;
@@ -87,16 +88,6 @@ const trackOtpFailure = (email) => {
 const clearOtpFailureState = (email) => {
   const key = String(email || '').trim().toLowerCase();
   otpAttemptStore.delete(key);
-};
-
-const createEmailTransporter = () => {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
 };
 
 const STAFF_ROLES = new Set(['admin', 'superadmin', 'department']);
@@ -174,7 +165,8 @@ exports.register = async (req, res, next) => {
 
     // Generate secure 6-digit OTP with 10 minute expiration
     const otp = crypto.randomInt(100000, 1000000).toString().padStart(6, '0');
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    const otpSentAt = new Date();
+    const otpExpires = new Date(otpSentAt.getTime() + 10 * 60 * 1000);
 
     // Explicitly enforce role: 'user' to prevent privilege escalation via mass assignment
     const user = new User({
@@ -186,25 +178,35 @@ exports.register = async (req, res, next) => {
       role: 'user',
       otp,
       otpExpires,
+      otpLastSentAt: otpSentAt,
       isVerified: false
     });
 
     await user.save();
 
-    // Send verification email asynchronously without blocking HTTP response
+    // Deliver the verification email before reporting successful registration.
     try {
       const transporter = createEmailTransporter();
-      transporter.sendMail({
-        from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+      await transporter.sendMail({
+        from: getEmailSender(),
         to: normalizedEmail,
         subject: 'TIPPED Registration - Verification Code',
         text: `Your 6-digit verification code is: ${otp}\n\nPlease enter this code to complete your registration. This code will expire in 10 minutes.`,
-      }).catch((emailErr) => {
-        console.error('[Nodemailer Error]: Failed to send registration OTP email:', emailErr.message);
       });
       console.log(`[Nodemailer] Registration OTP dispatched to ${normalizedEmail}`);
     } catch (emailErr) {
-      console.error('[Nodemailer Error]: Failed to dispatch registration OTP email:', emailErr.message);
+      console.error('[Nodemailer Error]: Failed to dispatch registration OTP email:', emailErr);
+      try {
+        const rollback = await User.deleteOne({ _id: user._id, isVerified: false });
+        if (rollback.deletedCount !== 1) {
+          console.error('[Nodemailer Error]: Failed to remove unverified user after OTP delivery failure');
+        }
+      } catch (rollbackErr) {
+        console.error('[Nodemailer Error]: Failed to remove unverified user after OTP delivery failure:', rollbackErr);
+      }
+      return res.status(500).json({
+        message: 'Could not send verification email. Please try again.'
+      });
     }
 
     // Constraint 2: Do NOT return raw OTP in JSON response
@@ -219,6 +221,70 @@ exports.register = async (req, res, next) => {
         error: 'Email already exists. Please log in.'
       });
     }
+    next(error);
+  }
+};
+
+// @desc    Resend registration verification OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+exports.resendOtp = async (req, res, next) => {
+  const genericResponse = {
+    message: 'If this account is awaiting verification, a new code has been sent.'
+  };
+
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const user = await User.findOne({ email });
+
+    if (!user || user.isVerified !== false || user.authProvider === 'google') {
+      return res.status(200).json(genericResponse);
+    }
+
+    const now = new Date();
+    const lastSentAt = user.otpLastSentAt ? new Date(user.otpLastSentAt) : null;
+    if (lastSentAt && now.getTime() - lastSentAt.getTime() < 60 * 1000) {
+      return res.status(429).json({ message: 'Please wait a minute before requesting another code.' });
+    }
+
+    const otp = crypto.randomInt(100000, 1000000).toString().padStart(6, '0');
+    const otpExpires = new Date(now.getTime() + 10 * 60 * 1000);
+    const update = await User.updateOne(
+      {
+        _id: user._id,
+        isVerified: false,
+        authProvider: { $ne: 'google' },
+        $or: [
+          { otpLastSentAt: null },
+          { otpLastSentAt: { $exists: false } },
+          { otpLastSentAt: { $lte: new Date(now.getTime() - 60 * 1000) } }
+        ]
+      },
+      { $set: { otp, otpExpires, otpLastSentAt: now } }
+    );
+
+    if (update.modifiedCount !== 1) {
+      return res.status(429).json({ message: 'Please wait a minute before requesting another code.' });
+    }
+
+    try {
+      const transporter = createEmailTransporter();
+      await transporter.sendMail({
+        from: getEmailSender(),
+        to: email,
+        subject: 'TIPPED Registration - Verification Code',
+        text: `Your 6-digit verification code is: ${otp}\n\nPlease enter this code to complete your registration. This code will expire in 10 minutes.`,
+      });
+      console.log(`[Nodemailer] Registration OTP dispatched to ${email}`);
+    } catch (emailErr) {
+      console.error('[Nodemailer Error]: Failed to dispatch registration OTP email:', emailErr);
+      return res.status(500).json({
+        message: 'Could not send verification email. Please try again.'
+      });
+    }
+
+    return res.status(200).json(genericResponse);
+  } catch (error) {
     next(error);
   }
 };
@@ -321,7 +387,7 @@ exports.login = async (req, res, next) => {
     if (user.isVerified !== true) {
       await loginGuard.succeed(user);
       logLoginEvent('unverified_account', req, user);
-      return res.status(401).json(INVALID);
+      return res.status(403).json({ message: 'Please verify your email first' });
     }
 
     await loginGuard.succeed(user);
@@ -576,7 +642,7 @@ exports.forgotPassword = async (req, res, next) => {
     try {
       const transporter = createEmailTransporter();
       transporter.sendMail({
-        from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+        from: getEmailSender(),
         to: normalizedEmail,
         subject: 'TIPPED - Password Reset Verification Code',
         text: `Your 6-digit password reset code is: ${otp}\n\nThis code will expire in 10 minutes. If you did not request this, please ignore this email.`,

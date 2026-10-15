@@ -14,6 +14,7 @@ let deleteOneCalls;
 let findByIdError;
 let saveCalls;
 let nextUserId;
+let sentEmails;
 
 const matchingUser = (filter) => {
   for (const user of users.values()) {
@@ -61,7 +62,7 @@ MockUser.updateOne = async (filter, update) => {
       delete user[field];
     }
   }
-  return { acknowledged: true, matchedCount: user ? 1 : 0 };
+  return { acknowledged: true, matchedCount: user ? 1 : 0, modifiedCount: user ? 1 : 0 };
 };
 MockUser.deleteOne = async (filter) => {
   deleteOneCalls += 1;
@@ -92,10 +93,13 @@ const mocks = {
   jsonwebtoken: {
     sign: (payload) => payload.purpose === 'privacy-consent' ? 'consent-token' : 'access-token'
   },
-  nodemailer: {
-    createTransport: () => ({
-      sendMail: () => Promise.resolve()
-    })
+  '../utils/emailService': {
+    createEmailTransporter: () => ({
+      sendMail: async (message) => {
+        sentEmails.push(message);
+      }
+    }),
+    getEmailSender: () => 'test-sender'
   }
 };
 
@@ -131,6 +135,7 @@ beforeEach(() => {
   findByIdError = null;
   saveCalls = 0;
   nextUserId = 1;
+  sentEmails = [];
   global.fetch = async () => ({
     ok: true,
     json: async () => ({ ...currentGoogleProfile })
@@ -196,6 +201,18 @@ const submitRegister = async () => {
       program: 'Engineering',
       password: 'new-password'
     }
+  }, response.res, (error) => {
+    throw error;
+  });
+  return response.result();
+};
+
+const submitResendOtp = async (email = 'student@tip.edu.ph') => {
+  const response = makeResponse();
+  await authController.resendOtp({
+    body: { email },
+    ip: '127.0.0.1',
+    headers: {}
   }, response.res, (error) => {
     throw error;
   });
@@ -297,7 +314,74 @@ test('expired pending registration is deleted and a fresh registration proceeds'
   assert.equal(users.has(String(expiredUser._id)), false);
   assert.equal(users.size, 1);
   assert.equal([...users.values()][0].isVerified, false);
+  assert.ok([...users.values()][0].otpLastSentAt instanceof Date);
   assert.equal(saveCalls, 1);
+});
+
+test('resend OTP returns the generic response for an unknown email', async () => {
+  const response = await submitResendOtp(' UNKNOWN@TIP.EDU.PH ');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    message: 'If this account is awaiting verification, a new code has been sent.'
+  });
+  assert.equal(sentEmails.length, 0);
+});
+
+test('resend OTP returns the generic response for an already verified account', async () => {
+  makeUser({ isVerified: true });
+
+  const response = await submitResendOtp();
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    message: 'If this account is awaiting verification, a new code has been sent.'
+  });
+  assert.equal(sentEmails.length, 0);
+});
+
+test('resend OTP returns the generic response for an unverified Google account', async () => {
+  makeUser({ authProvider: 'google' });
+
+  const response = await submitResendOtp();
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    message: 'If this account is awaiting verification, a new code has been sent.'
+  });
+  assert.equal(sentEmails.length, 0);
+});
+
+test('resend OTP updates and emails a new code for an unverified account', async () => {
+  const user = makeUser({ otpLastSentAt: new Date(Date.now() - 61_000) });
+  const previousOtp = user.otp;
+
+  const response = await submitResendOtp(' STUDENT@TIP.EDU.PH ');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    message: 'If this account is awaiting verification, a new code has been sent.'
+  });
+  assert.notEqual(user.otp, previousOtp);
+  assert.ok(user.otpExpires > new Date());
+  assert.ok(user.otpLastSentAt instanceof Date);
+  assert.equal(sentEmails.length, 1);
+  assert.equal(sentEmails[0].to, 'student@tip.edu.ph');
+  assert.equal(sentEmails[0].subject, 'TIPPED Registration - Verification Code');
+});
+
+test('resend OTP returns 429 when requested again within 60 seconds', async () => {
+  const user = makeUser({ otpLastSentAt: new Date() });
+  const previousOtp = user.otp;
+
+  const response = await submitResendOtp();
+
+  assert.equal(response.statusCode, 429);
+  assert.deepEqual(response.body, {
+    message: 'Please wait a minute before requesting another code.'
+  });
+  assert.equal(user.otp, previousOtp);
+  assert.equal(sentEmails.length, 0);
 });
 
 test('unexpired pending registration is rejected and retained', async () => {

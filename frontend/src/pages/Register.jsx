@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { registerUser, verifyRegistrationOtp } from '../api/auth';
+import { registerUser, resendRegistrationOtp, verifyRegistrationOtp } from '../api/auth';
+import { getErrorMessage } from '../api/config';
 import { AlertCircle, Eye, EyeOff, X } from 'lucide-react';
 import programGroups from '../constants/programs.json';
 
@@ -8,7 +9,9 @@ export default function Register({
   onLoginSuccess,
   onConsentRequired,
   isEmbedded = false,
-  onToggleLogin
+  onToggleLogin,
+  verificationEmail = '',
+  verificationMessage = ''
 }) {
   const [formData, setFormData] = useState({
     firstName: '',
@@ -26,7 +29,27 @@ export default function Register({
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+  const [resendError, setResendError] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (verificationEmail) {
+      setPendingEmail(verificationEmail);
+      setShowOtpModal(true);
+      setResendCountdown(60);
+      setResendMessage(verificationMessage);
+      setResendError('');
+    }
+  }, [verificationEmail, verificationMessage]);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return undefined;
+    const timer = setTimeout(() => setResendCountdown((remaining) => remaining - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -70,6 +93,9 @@ export default function Register({
 
       setPendingEmail(res.email || formData.email.toLowerCase().trim());
       setShowOtpModal(true);
+      setResendCountdown(60);
+      setResendMessage('');
+      setResendError('');
     } catch (err) {
       const serverMessage = err.response?.data?.message || err.response?.data?.error;
       const isEmailConflict =
@@ -85,6 +111,22 @@ export default function Register({
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setResendLoading(true);
+    setResendMessage('');
+    setResendError('');
+
+    try {
+      const response = await resendRegistrationOtp(pendingEmail);
+      setResendMessage(response.message || 'A new verification code has been sent.');
+      setResendCountdown(60);
+    } catch (err) {
+      setResendError(getErrorMessage(err, 'Could not resend verification code. Please try again.'));
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -359,6 +401,18 @@ export default function Register({
           </div>
         )}
 
+        {resendMessage && (
+          <div className="mb-4 p-2.5 rounded bg-green-500/10 border border-green-500/30 text-green-700 dark:text-green-400 text-xs text-center">
+            {resendMessage}
+          </div>
+        )}
+
+        {resendError && (
+          <div className="mb-4 p-2.5 rounded bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 text-xs text-center">
+            {resendError}
+          </div>
+        )}
+
         <form onSubmit={handleVerifyOtp} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
@@ -383,6 +437,19 @@ export default function Register({
             {loading ? 'Submitting...' : 'Verify'}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={handleResendOtp}
+          disabled={resendCountdown > 0 || resendLoading}
+          className="w-full mt-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {resendLoading
+            ? 'Sending...'
+            : resendCountdown > 0
+              ? `Resend in ${resendCountdown}s`
+              : 'Resend code'}
+        </button>
       </div>
     </div>
   );

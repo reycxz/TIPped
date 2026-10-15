@@ -50,7 +50,23 @@ const formatEmailLocation = (location) => {
   return { text, html };
 };
 
-const createTransporter = () => {
+const createEmailTransporter = () => {
+  if (process.env.SMTP_HOST) {
+    const configuredPort = Number(process.env.SMTP_PORT);
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: configuredPort || 2525,
+      secure: configuredPort === 465,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+  }
+
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -59,6 +75,11 @@ const createTransporter = () => {
     },
   });
 };
+
+const getEmailSender = () => process.env.MAIL_FROM || process.env.EMAIL_FROM || process.env.EMAIL_USER;
+
+exports.createEmailTransporter = createEmailTransporter;
+exports.getEmailSender = getEmailSender;
 
 exports.sendStatusUpdateEmail = async ({
   to,
@@ -72,7 +93,7 @@ exports.sendStatusUpdateEmail = async ({
   location: customLocation,
 }) => {
   try {
-    const transporter = createTransporter();
+    const transporter = createEmailTransporter();
     const resolvedLocation = formatEmailLocation(customLocation || { campus, room });
     const safeTicketId = escapeHtml(ticketId || '');
     const safeResolvedLocation = resolvedLocation.html;
@@ -146,7 +167,7 @@ exports.sendStatusUpdateEmail = async ({
     const textContent = `Ticket: ${ticketId} | Date: ${timestamp} | Location: ${resolvedLocation.text} | Concern: ${category}\nStatus Update: ${newStatus}\nAdmin Remarks: ${adminNote || 'None'}\nThis is an automated system message. Please do not reply.`;
 
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+      from: getEmailSender(),
       to,
       subject: `TIPPED Status Update: ${ticketId}`,
       html: htmlContent,
@@ -162,11 +183,11 @@ exports.sendStatusUpdateEmail = async ({
 
 exports.sendRegistrationOtpEmail = async (to, otp) => {
   try {
-    const transporter = createTransporter();
+    const transporter = createEmailTransporter();
     const textContent = `Your 6-digit verification code is: ${otp}\n\nPlease enter this code to complete your registration. This code will expire in 10 minutes.`;
 
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+      from: getEmailSender(),
       to,
       subject: 'TIPPED Registration - Verification Code',
       text: textContent,
@@ -181,7 +202,7 @@ exports.sendRegistrationOtpEmail = async (to, otp) => {
 
 exports.sendGuestConfirmationEmail = async ({ to, category, campus, building, location }) => {
   try {
-    const transporter = createTransporter();
+    const transporter = createEmailTransporter();
     const resolvedLocation = formatEmailLocation(location || { campus, building });
     const safeCategory = escapeHtml(category || '');
     const safeResolvedLocation = resolvedLocation.html;
@@ -219,7 +240,7 @@ exports.sendGuestConfirmationEmail = async ({ to, category, campus, building, lo
     `;
 
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '"TIPped System" <noreply@tipped.edu>',
+      from: getEmailSender(),
       to,
       subject: 'Report Received - TIPped',
       html: htmlContent,
