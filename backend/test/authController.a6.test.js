@@ -14,6 +14,7 @@ let deleteOneCalls;
 let findByIdError;
 let saveCalls;
 let nextUserId;
+let sentEmails;
 
 const matchingUser = (filter) => {
   for (const user of users.values()) {
@@ -92,10 +93,13 @@ const mocks = {
   jsonwebtoken: {
     sign: (payload) => payload.purpose === 'privacy-consent' ? 'consent-token' : 'access-token'
   },
-  nodemailer: {
-    createTransport: () => ({
-      sendMail: () => Promise.resolve()
-    })
+  '../utils/emailService': {
+    createEmailTransporter: () => ({
+      sendMail: async (message) => {
+        sentEmails.push(message);
+      }
+    }),
+    getEmailSender: () => 'test-sender'
   }
 };
 
@@ -131,6 +135,7 @@ beforeEach(() => {
   findByIdError = null;
   saveCalls = 0;
   nextUserId = 1;
+  sentEmails = [];
   global.fetch = async () => ({
     ok: true,
     json: async () => ({ ...currentGoogleProfile })
