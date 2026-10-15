@@ -7,6 +7,7 @@ const sanitizeUser = (user) => {
   delete userObj.password;
   delete userObj.otp;
   delete userObj.otpExpires;
+  delete userObj.otpLastSentAt;
   delete userObj.__v;
   delete userObj.programChangedAt;
   userObj.nextProgramChangeAt = getNextProgramChangeAt(user.programChangedAt);

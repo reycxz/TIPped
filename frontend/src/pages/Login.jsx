@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginUser, googleAuthApi } from '../api/auth';
+import { loginUser, googleAuthApi, resendRegistrationOtp } from '../api/auth';
 import { getErrorMessage } from '../api/config';
 import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
@@ -21,11 +21,14 @@ export default function Login({
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [verificationNeeded, setVerificationNeeded] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setVerificationNeeded(false);
     setLoading(true);
 
     try {
@@ -76,6 +79,13 @@ export default function Login({
     } catch (err) {
       const status = err.response?.status;
       const serverMessage = getErrorMessage(err, 'An error occurred');
+      const needsVerification = status === 403 && serverMessage === 'Please verify your email first';
+      setVerificationNeeded(needsVerification);
+
+      if (needsVerification) {
+        setError(serverMessage);
+        return;
+      }
 
       if (status === 429) {
         setError(serverMessage || 'Too many login attempts. Please try again later.');
@@ -92,6 +102,22 @@ export default function Login({
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    setError('');
+    try {
+      const response = await resendRegistrationOtp(email.trim().toLowerCase());
+      onToggleRegister?.({
+        email: email.trim().toLowerCase(),
+        message: response.message || 'A new verification code has been sent.'
+      });
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not resend verification code. Please try again.'));
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -193,6 +219,16 @@ export default function Login({
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
+      )}
+      {verificationNeeded && (
+        <button
+          type="button"
+          onClick={handleResendVerification}
+          disabled={resendLoading}
+          className="mb-5 w-full text-sm font-medium text-primary hover:text-amber-500 disabled:opacity-50 cursor-pointer"
+        >
+          {resendLoading ? 'Sending...' : 'Send me a new code'}
+        </button>
       )}
 
       <form onSubmit={handleLogin} className="space-y-4">

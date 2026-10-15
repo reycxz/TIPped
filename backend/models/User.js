@@ -79,6 +79,10 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    otpLastSentAt: {
+      type: Date,
+      default: null
+    },
     isVerified: {
       type: Boolean,
       default: false

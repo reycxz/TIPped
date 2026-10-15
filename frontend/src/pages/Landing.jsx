@@ -59,6 +59,7 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
   const [isRegister, setIsRegister] = useState(
     location.state?.register === true
   );
+  const [verificationRequest, setVerificationRequest] = useState(null);
   const [flipDegree, setFlipDegree] = useState(0);
   const [isFlipping, setIsFlipping] = useState(false);
 
@@ -242,14 +243,22 @@ export default function Landing({ onLoginSuccess, onConsentRequired }) {
                     isEmbedded={true}
                     onLoginSuccess={onLoginSuccess}
                     onConsentRequired={onConsentRequired}
-                    onToggleRegister={() => flipTo(true)}
+                    onToggleRegister={(request) => {
+                      if (request?.email) setVerificationRequest(request);
+                      flipTo(true);
+                    }}
                   />
                 ) : (
                   <Register
                     isEmbedded={true}
                     onLoginSuccess={onLoginSuccess}
                     onConsentRequired={onConsentRequired}
-                    onToggleLogin={() => flipTo(false)}
+                    onToggleLogin={() => {
+                      setVerificationRequest(null);
+                      flipTo(false);
+                    }}
+                    verificationEmail={verificationRequest?.email || ''}
+                    verificationMessage={verificationRequest?.message || ''}
                   />
                 )}
               </div>

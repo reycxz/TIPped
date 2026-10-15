@@ -33,6 +33,7 @@ const passwordResetLimiter = rateLimit({
 // Public routes
 router.post('/register', registerLimiter, authController.register);
 router.post('/verify-otp', verifyOtpLimiter, authController.verifyOtp);
+router.post('/resend-otp', verifyOtpLimiter, authController.resendOtp);
 router.post('/login', loginIpLimiter, loginIdentityLimiter, authController.login);
 router.post('/google-auth', googleAuthLimiter, authController.googleAuth);
 router.post('/consent', authController.acceptPrivacyConsent);
